@@ -91,6 +91,27 @@
 
   .error { color: var(--figma-color-text-danger); }
 
+  .error:empty { display: none; }
+
+  .check { display: flex; align-items: center; gap: 8px; margin-top: 4px; }
+
+  .check input {
+    flex: none;
+    width: 16px;
+    height: 16px;
+    margin: 0;
+    border: 1px solid var(--figma-color-icon);
+    border-radius: 4px;
+    appearance: none;
+  }
+
+  .check input:checked {
+    border-color: var(--figma-color-bg-brand);
+    background: var(--figma-color-bg-brand) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16'%3E%3Cpath d='m4 8 2.5 2.5L12 5' fill='none' stroke='white'/%3E%3C/svg%3E") center / 16px no-repeat;
+  }
+
+  .check input:focus-visible { outline: 2px solid var(--figma-color-border-selected); outline-offset: 1px; }
+
   .logo { width: 15px; height: 16px; color: var(--figma-color-icon); }
 
   /* Figma segmented control: radios underneath, so arrow keys and screen readers work as usual.
@@ -232,7 +253,7 @@
     scrollbar-width: none;
   }
 
-  .menu [role=option] {
+  .menu [role^=menuitem] {
     display: flex;
     align-items: center;
     width: 100%;
@@ -241,16 +262,18 @@
     text-align: left;
   }
 
-  .menu [role=option]::before { content: ''; flex: none; width: 24px; height: 24px; }
+  .menu [role^=menuitem]::before { content: ''; flex: none; width: 24px; height: 24px; }
 
-  .menu [role=option][aria-selected=true]::before {
+  .menu [aria-checked=true]::before {
     background: currentColor;
     mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='24' height='24'%3E%3Cpath d='m8 12 2.5 2.5L16 9' fill='none' stroke='black'/%3E%3C/svg%3E") center / 24px no-repeat;
   }
 
-  .menu [role=option]:hover, .menu [role=option]:focus { background: var(--figma-color-bg-brand); }
+  .menu [role^=menuitem]:hover, .menu [role^=menuitem]:focus { background: var(--figma-color-bg-brand); }
 
-  .menu [role=option].sub span { padding-left: 12px; }
+  .menu .sub span { padding-left: 12px; }
+
+  .menu [role=separator] { height: 1px; margin: 8px 0; background: rgba(255, 255, 255, 0.1); }
 
   .menu span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
@@ -474,7 +497,7 @@
   <header>
     <div class="row">
       <div class="control">
-        <button id="board" class="field select" popovertarget="board-menu" aria-haspopup="listbox" aria-label="Board or subcollection"><span id="board-label">Loading</span></button>
+        <button id="board" class="field select" popovertarget="board-menu" aria-haspopup="menu" aria-label="Collection"><span id="board-label">Loading</span></button>
         <svg class="chevron" width="24" height="24" viewBox="0 0 24 24" aria-hidden="true">
           <path d="m9.5 11 2.5 2.5 2.5-2.5" fill="none" stroke="currentColor"/>
         </svg>
@@ -488,7 +511,7 @@
       </button>
     </div>
     <div class="control">
-      <input id="search" class="field" type="search" placeholder="Search in board" aria-label="Search in board" autocomplete="off" spellcheck="false">
+      <input id="search" class="field" type="search" placeholder="Search in collection" aria-label="Search in collection" autocomplete="off" spellcheck="false">
       <svg width="24" height="24" viewBox="0 0 24 24" aria-hidden="true">
         <circle cx="11.5" cy="11.5" r="4" fill="none" stroke="currentColor"/>
         <path d="m14.5 14.5 3 3" stroke="currentColor"/>
@@ -515,7 +538,7 @@
   </footer>
 </main>
 
-<div id="board-menu" class="menu" popover role="listbox" aria-label="Board or subcollection"></div>
+<div id="board-menu" class="menu" popover role="menu" aria-label="Collections"></div>
 
 <div id="settings" popover>
   <h2>Settings</h2>
@@ -547,6 +570,18 @@
   </div>
 </dialog>
 
+<dialog id="create">
+  <h2 id="create-title">New collection</h2>
+  <input id="create-name" class="field large" maxlength="24" placeholder="Name" aria-label="Name" autocomplete="off" spellcheck="false">
+  <label class="check"><input id="create-private" type="checkbox"><span>Make private</span></label>
+  <p>Private collections are only visible to you and collaborators.</p>
+  <p id="create-error" class="error" role="alert"></p>
+  <div class="actions">
+    <button id="create-cancel" class="secondary">Cancel</button>
+    <button id="create-submit" class="primary">Create</button>
+  </div>
+</dialog>
+
 <script id="cosmos">
   // Cosmos client. Cosmos has no public API, so this uses the GraphQL API behind cosmos.so.
   // Every call stays in this block, so a change on Cosmos's side touches one place.
@@ -567,7 +602,7 @@
 
   const BOARDS = `query Boards($userId: UserId!, $pageCursor: String) {
     clusters(filters: { ownerId: $userId }, meta: { pageSize: 20, pageCursor: $pageCursor }) {
-      items { id name subClusters { items { id name numberOfElements } } }
+      items { id name isPrivate subClusters { items { id name numberOfElements isPrivate } } }
       meta { nextPageCursor }
     }
   }`;
@@ -600,6 +635,11 @@
       results { element { ${ELEMENT} } }
       meta { nextPageCursor count }
     }
+  }`;
+
+  // Same input as the Save to Cosmos extension. A parent id makes it a subcollection.
+  const CREATE_BOARD = `mutation CreateBoard($userId: UserId!, $name: String!, $parentClusterId: ClusterId, $isPrivate: Boolean!) {
+    cluster { create(input: { name: $name, userId: $userId, parentClusterId: $parentClusterId, isPrivate: $isPrivate }) { id } }
   }`;
 
   const POLICY = `query Policy { s3PostPolicyForImageUpload { signature policyString policyBase64String } }`;
@@ -668,6 +708,11 @@
       pageCursor = clusters.meta.nextPageCursor;
     } while (pageCursor);
     return boards;
+  }
+
+  async function createBoard(name, parentClusterId, isPrivate) {
+    const data = await gql(CREATE_BOARD, { userId: session.userId, name, parentClusterId, isPrivate });
+    return String(data.cluster.create.id);
   }
 
   // A board's own items. Its subcollections hold items of their own that this list leaves out.
@@ -842,59 +887,145 @@
     return img;
   }
 
+  // Collections in menu order, each with its subcollections. Cosmos nests one level deep.
+  let tree = [];
+
   async function showBrowser() {
     $('login').hidden = true;
     $('browser').hidden = false;
-    const menu = $('board-menu');
-    menu.replaceChildren();
-    boards.clear();
-    for (const board of await listBoards()) {
-      const parentBoard = { id: String(board.id), label: board.name, subs: [] };
-      boards.set(parentBoard.id, parentBoard);
-      menu.append(menuOption(parentBoard.id, board.name));
-      for (const sub of board.subClusters.items) {
-        const child = { id: String(sub.id), label: `${board.name} / ${sub.name}`, subs: [], count: sub.numberOfElements };
-        parentBoard.subs.push(child);
-        boards.set(child.id, child);
-        menu.append(menuOption(child.id, sub.name, true));
-      }
-    }
-    if (!boards.size) return setStatus('No boards yet. Create one on cosmos.so first.');
-    chooseBoard(boards.keys().next().value);
+    tree = (await listBoards()).map((board) => {
+      const collection = { id: String(board.id), name: board.name, label: board.name, isPrivate: board.isPrivate, subs: [] };
+      collection.subs = board.subClusters.items.map((sub) => subcollection(collection, sub));
+      return collection;
+    });
+    indexBoards();
+    if (tree.length) return chooseBoard(tree[0].id);
+    $('board-label').textContent = 'No collections';
+    $('grid').replaceChildren(note('Create your first collection from the menu above.'));
+    setStatus('');
   }
 
-  function menuOption(id, name, isSub) {
-    const option = document.createElement('button');
-    option.setAttribute('role', 'option');
-    option.className = isSub ? 'sub' : '';
-    option.dataset.id = id;
-    option.title = name;
-    const label = document.createElement('span');
-    label.textContent = name;
-    option.append(label);
-    option.onclick = () => chooseBoard(id);
-    return option;
+  function subcollection(parentBoard, sub) {
+    return {
+      id: String(sub.id),
+      name: sub.name,
+      label: `${parentBoard.name} / ${sub.name}`,
+      isPrivate: sub.isPrivate,
+      count: sub.numberOfElements || 0,
+      subs: [],
+      parent: parentBoard,
+    };
+  }
+
+  function indexBoards() {
+    boards.clear();
+    for (const board of tree) {
+      boards.set(board.id, board);
+      for (const sub of board.subs) boards.set(sub.id, sub);
+    }
+  }
+
+  // Rebuilt on every open, so the subcollection action names the collection you are in.
+  function renderMenu() {
+    const menu = $('board-menu');
+    menu.replaceChildren();
+    for (const board of tree) {
+      menu.append(menuItem(board));
+      for (const sub of board.subs) menu.append(menuItem(sub));
+    }
+    if (tree.length) {
+      const separator = document.createElement('div');
+      separator.setAttribute('role', 'separator');
+      menu.append(separator);
+    }
+    menu.append(menuAction('New collection', () => openCreate(null)));
+    const inside = currentBoard();
+    const parentBoard = inside && (inside.parent || inside);
+    if (parentBoard) menu.append(menuAction(`New subcollection in ${parentBoard.name}`, () => openCreate(parentBoard)));
+  }
+
+  function menuItem(board) {
+    const item = document.createElement('button');
+    item.setAttribute('role', 'menuitemradio');
+    item.setAttribute('aria-checked', String(board.id === currentId));
+    if (board.parent) item.className = 'sub';
+    item.title = board.name;
+    item.append(Object.assign(document.createElement('span'), { textContent: board.name }));
+    item.onclick = () => chooseBoard(board.id);
+    return item;
+  }
+
+  function menuAction(text, run) {
+    const item = document.createElement('button');
+    item.setAttribute('role', 'menuitem');
+    item.append(Object.assign(document.createElement('span'), { textContent: text }));
+    item.onclick = () => {
+      $('board-menu').hidePopover();
+      run();
+    };
+    return item;
   }
 
   function chooseBoard(id) {
     currentId = id;
-    for (const option of $('board-menu').querySelectorAll('[role=option]')) {
-      option.setAttribute('aria-selected', String(option.dataset.id === id));
-    }
     $('board-label').textContent = boards.get(id).label;
     if ($('board-menu').matches(':popover-open')) $('board-menu').hidePopover();
     load().catch(fail);
   }
 
-  // Opens below the trigger at its width, with the current item focused for the arrow keys.
+  // Opens below the trigger at its width, with the current collection focused for the arrow keys.
   function openBoardMenu() {
+    renderMenu();
     const menu = $('board-menu');
     const trigger = $('board').getBoundingClientRect();
     const top = trigger.bottom + 4;
     Object.assign(menu.style, { top: `${top}px`, left: `${trigger.left}px`, width: `${trigger.width}px`, maxHeight: `${innerHeight - top - 8}px` });
-    const current = menu.querySelector('[aria-selected=true]') || menu.firstElementChild;
+    const current = menu.querySelector('[aria-checked=true]') || menu.firstElementChild;
     current?.focus();
     current?.scrollIntoView({ block: 'nearest' });
+  }
+
+  // The parent a new subcollection goes into, or null for a top-level collection.
+  let createParent = null;
+
+  // A subcollection starts with its parent's privacy, so one inside a private collection stays private.
+  function openCreate(parentBoard) {
+    createParent = parentBoard;
+    $('create-title').textContent = parentBoard ? `New subcollection in ${parentBoard.name}` : 'New collection';
+    $('create-name').value = '';
+    $('create-private').checked = Boolean(parentBoard && parentBoard.isPrivate);
+    $('create-error').textContent = '';
+    $('create').showModal();
+    $('create-name').focus();
+  }
+
+  // Cosmos caps names at 24 characters, which the field enforces, and reserves a leading underscore.
+  async function submitCreate() {
+    const name = $('create-name').value.trim();
+    const error = !name ? 'Enter a name.' : name.startsWith('_') ? 'Names cannot start with an underscore.' : '';
+    $('create-error').textContent = error;
+    if (error) return;
+
+    const button = $('create-submit');
+    const isPrivate = $('create-private').checked;
+    button.disabled = true;
+    try {
+      const id = await createBoard(name, createParent ? createParent.id : null, isPrivate);
+      if (createParent) createParent.subs.push(subcollection(createParent, { id, name, isPrivate, numberOfElements: 0 }));
+      else tree.unshift({ id, name, label: name, isPrivate, subs: [] });
+      indexBoards();
+      $('create').close();
+      chooseBoard(id);
+      toMain({ type: 'notify', text: `Created ${boards.get(id).label}` });
+    } catch (err) {
+      if (!session) {
+        $('create').close();
+        return fail(err);
+      }
+      $('create-error').textContent = err.message;
+    } finally {
+      button.disabled = false;
+    }
   }
 
   const currentBoard = () => boards.get(currentId);
@@ -929,7 +1060,7 @@
     grid.append(...page.items.map(tile));
 
     if (page.next) grid.append(moreButton());
-    else if (!view.items.length) grid.append(note(term ? `No results for “${term}”` : 'Nothing in this board itself'));
+    else if (!view.items.length) grid.append(note(term ? `No results for “${term}”` : 'Nothing in this collection itself'));
     updateActions();
   }
 
@@ -1120,7 +1251,7 @@
   });
 
   $('board-menu').onkeydown = (e) => {
-    const options = [...$('board-menu').querySelectorAll('[role=option]')];
+    const options = [...$('board-menu').querySelectorAll('[role^=menuitem]')];
     const i = options.indexOf(document.activeElement);
     const next = { ArrowDown: i + 1, ArrowUp: i - 1, Home: 0, End: options.length - 1 }[e.key];
     if (next === undefined) return;
@@ -1175,6 +1306,16 @@
       fail(err);
       updateActions();
     });
+  };
+
+  $('create-submit').onclick = submitCreate;
+
+  $('create-cancel').onclick = () => $('create').close();
+
+  $('create-name').onkeydown = (e) => {
+    if (e.key !== 'Enter') return;
+    e.preventDefault();
+    submitCreate();
   };
 
   $('upload').onclick = () => {

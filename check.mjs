@@ -15,7 +15,7 @@ function load(responses) {
   };
   const parent = { postMessage: () => {} };
   const api = new Function('fetch', 'parent', `${src}
-    return { gql, uploadPng, searchItems, canvasWidth, getSession: () => session, setSession: (s) => { session = s; } };`)(fetch, parent);
+    return { gql, uploadPng, searchItems, createBoard, canvasWidth, getSession: () => session, setSession: (s) => { session = s; } };`)(fetch, parent);
   return { api, calls };
 }
 
@@ -116,8 +116,16 @@ const authError = { errors: [{ message: 'unauthenticated', extensions: { code: '
   assert.equal(huge.src, `${cdn}huge?format=png&w=4096`);
 }
 
+// A new subcollection goes in with its parent and privacy, and the new id comes back as a string.
+{
+  const { api, calls } = load([[200, { data: { cluster: { create: { id: 99 } } } }]]);
+  api.setSession({ accessToken: 'a1', refreshToken: 'r1', userId: 7 });
+  assert.equal(await api.createBoard('Moodboard', '42', true), '99');
+  assert.deepEqual(calls[0].body.variables, { userId: 7, name: 'Moodboard', parentClusterId: '42', isPrivate: true });
+}
+
 // code.js runs with a stub figma and fetch, and returns its placement functions.
-function loadMain({ createImageAsync, createVideoAsync, fetch } = {}) {
+function loadMain({ createImageAsync, createVideoAsync, getImageByHash, fetch } = {}) {
   const figma = {
     showUI() {},
     on() {},
@@ -126,8 +134,10 @@ function loadMain({ createImageAsync, createVideoAsync, fetch } = {}) {
     currentPage: { selection: [] },
     createImageAsync,
     createVideoAsync,
+    getImageByHash,
   };
-  return new Function('figma', '__html__', 'fetch', `${mainSrc}\nreturn { masonry, arrange, loadImage, fillFor };`)(figma, '', fetch);
+  const exported = 'masonry, arrange, loadImage, fillFor, uploadRoots, exportScale';
+  return new Function('figma', '__html__', 'fetch', `${mainSrc}\nreturn { ${exported} };`)(figma, '', fetch);
 }
 
 const image = (url) => ({ hash: url, getSizeAsync: async () => ({ width: 10, height: 20 }) });
@@ -201,6 +211,35 @@ const image = (url) => ({ hash: url, getSizeAsync: async () => ({ width: 10, hei
   assert.deepEqual(spots.boxes.map((box) => [box.x, box.y]), [[0, 0], [260, 0], [0, 240]]);
   assert.equal(spots.width, 460);
   assert.equal(spots.height, 280);
+}
+
+// Uploads take the outermost design of every selected layer once, and every design in a selected section.
+{
+  const { uploadRoots } = loadMain();
+  const page = { type: 'PAGE' };
+  const node = (id, type, parent) => ({ id, type, parent, children: [] });
+  const section = node('section', 'SECTION', page);
+  const design = node('design', 'FRAME', section);
+  const nested = node('nested', 'FRAME', design);
+  const deep = node('deep', 'RECTANGLE', nested);
+  const loose = node('loose', 'FRAME', page);
+  const text = node('text', 'TEXT', loose);
+  const shelf = node('shelf', 'SECTION', page);
+  shelf.children = [node('a', 'FRAME', shelf), node('b', 'RECTANGLE', shelf)];
+
+  const roots = uploadRoots([deep, nested, text, shelf, loose]);
+  assert.deepEqual(roots.map((root) => root.id), ['design', 'loose', 'a', 'b']);
+}
+
+// Image layers export at their image's resolution, capped at 4x. Everything else exports at 2x.
+{
+  const { exportScale } = loadMain({ getImageByHash: () => ({ getSizeAsync: async () => ({ width: 2000, height: 1000 }) }) });
+  const imageLayer = (width) => ({ type: 'RECTANGLE', width, fills: [{ type: 'IMAGE', imageHash: 'h' }] });
+
+  assert.equal(await exportScale(imageLayer(400)), 4);
+  assert.equal(await exportScale(imageLayer(1000)), 2);
+  assert.equal(await exportScale(imageLayer(4000)), 1);
+  assert.equal(await exportScale({ type: 'FRAME', width: 400, children: [], fills: [] }), 2);
 }
 
 // Canvas images stay within Figma's 4096 px limit on the longer side.

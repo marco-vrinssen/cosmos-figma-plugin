@@ -1,22 +1,23 @@
 # cosmos.so unofficial
 
-A Figma and FigJam plugin for [Cosmos](https://www.cosmos.so). Bring images, GIFs and videos from your Cosmos boards into Figma, one at a time, as a selection or as whole boards, and save layers back to Cosmos.
+A Figma and FigJam plugin for [Cosmos](https://www.cosmos.so). Bring images, GIFs and videos from your Cosmos collections into Figma, one at a time, as a selection or as whole collections, and save designs back to Cosmos.
 
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="docs/mockup-dark.png">
-  <img src="docs/mockup-light.png" alt="The plugin window in Figma showing a Cosmos board in Select mode, with three items checked, a GIF and a video, and the buttons Upload 2 layers and Import 3 in grid">
+  <img src="docs/mockup-light.png" alt="The plugin window in Figma showing a Cosmos collection in Select mode, with three items checked, a GIF and a video, and the buttons Upload 2 layers and Import 3 in grid">
 </picture>
 
 cosmos.so unofficial is an independent plugin, not affiliated with or endorsed by Cosmos. The Cosmos name and logo belong to Cosmos and are used here only to describe what the plugin connects to. It is not on the Figma Community and will only be published there with Cosmos's permission.
 
 ## What it does
 
-- Lists your boards, private ones included, with their subcollections, and searches inside them by meaning, the way cosmos.so does.
-- Imports in three modes. Single places one item by click or drag. Select imports the items you pick. All imports a whole board with its subcollections, or every search result.
-- Import in grid puts items into sections named after the board, one per subcollection. Items keep their original ratio or get a square crop that keeps the whole file.
+- Lists your collections, private ones included, with their subcollections, and searches inside them by meaning, the way cosmos.so does.
+- Creates collections, and subcollections inside the collection you are in, public or private.
+- Imports in three modes. Single places one item by click or drag. Select imports the items you pick. All imports a whole collection with its subcollections, or every search result.
+- Import in grid puts items into sections named after the collection, one per subcollection. Items keep their original ratio or get a square crop that keeps the whole file.
 - GIFs stay animated or come in as stills. Videos arrive as video fills, or as their first frame where Figma allows no video.
 - Images arrive as the original files at full resolution.
-- Upload selection saves the selected layers to the picked board as 2x PNGs.
+- Upload selection saves every selected design to the picked collection. A layer inside a design uploads the whole outermost frame, so a UI with nested frames goes up as one design. Frames upload at 2x, image layers at their image's resolution.
 - Looks and behaves like Figma's own UI3 controls, with Figma's theme colors and Inter, in light and dark, in Figma and FigJam.
 
 ## Try it
@@ -42,8 +43,9 @@ The plugin uses the GraphQL API behind cosmos.so, the same one the web app and t
 | Operation | Purpose |
 | --- | --- |
 | `auth.login`, `auth.refreshAccessToken`, `auth.logout`, `me` | Sign-in and session |
-| `clusters`, `clusterConnections` | Boards, sections and their images |
-| `searchElements` | Search inside a board |
+| `clusters`, `clusterConnections` | Collections, subcollections and their items |
+| `cluster.create` | New collections and subcollections |
+| `searchElements` | Search inside a collection |
 | `s3PostPolicyForImageUpload`, `element.createFromImage` | Upload |
 
 ## Privacy

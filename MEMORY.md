@@ -27,6 +27,8 @@ Cosmos has no public API, and GraphQL introspection is off. When a call breaks, 
 - `Video` has the stored MP4 in `url` on the CDN and a JPEG in `thumbnail.url`. `mux.mp4Url` is a low-quality alternative on `stream.mux.com`, which the manifest does not allow.
 - `figma.createVideoAsync` takes MP4, MOV or WebM bytes up to 100 MB and works only in paid Education, Professional and Organization files. code.js fetches the bytes with the sandbox's own `fetch`.
 - The sign-in background floats images from cluster `1996613743`, the public picks of Cosmos's own account.
+- `cluster.create(input: { name, userId, parentClusterId, isPrivate })` creates collections and, with a parent, subcollections, the way the Save to Cosmos extension does. Names are capped at 24 characters and may not start with an underscore. New collections default to public on cosmos.so. In the plugin a subcollection starts with its parent's privacy.
+- Upload selection resolves each selected layer to its outermost layer below the page or a section, drops duplicates, and expands a selected section into its designs. Image layers export at their image's resolution, capped at 4x, everything else at 2x.
 
 ## UI pitfalls
 
@@ -49,3 +51,4 @@ GatherOS (Figma Community plugin `1677775235799832482`, by Abhijit Rout) imports
 - Whether S3 sends CORS headers to the `null` origin. `uploadPng` counts an unreadable response as sent.
 - Whether Figma's `createImageAsync` rejects a WebP, which the PNG fallback relies on.
 - Video fills and animated GIF fills on a real canvas, and the `popover` settings inside Figma's plugin iframe.
+- Creating a collection and uploading several designs with a real account.
