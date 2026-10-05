@@ -1,0 +1,16 @@
+{
+  "name": "cosmos.so unofficial",
+  "id": "cosmos-figma-plugin",
+  "api": "1.0.0",
+  "main": "code.js",
+  "ui": "ui.html",
+  "editorType": ["figma", "figjam"],
+  "documentAccess": "dynamic-page",
+  "networkAccess": {
+    "allowedDomains": [
+      "https://api.www.cosmos.so",
+      "https://cdn.cosmos.so",
+      "https://s3.amazonaws.com"
+    ]
+  }
+}

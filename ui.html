@@ -1,0 +1,706 @@
+<style>
+  * { box-sizing: border-box; }
+
+  html, body { height: 100%; margin: 0; }
+
+  /* Figma sets this class with themeColors. It turns native parts like the select menu dark too. */
+  .figma-dark { color-scheme: dark; }
+
+  body {
+    display: flex;
+    flex-direction: column;
+    font: 400 11px/16px Inter, system-ui, sans-serif;
+    letter-spacing: 0.005em;
+    color: var(--figma-color-text);
+    background: var(--figma-color-bg);
+    -webkit-font-smoothing: antialiased;
+    user-select: none;
+    cursor: default;
+  }
+
+  [hidden] { display: none !important; }
+
+  h1, h2 { margin: 0; font-size: 13px; line-height: 24px; font-weight: 500; }
+
+  p { margin: 0; color: var(--figma-color-text-secondary); }
+
+  svg { display: block; flex: none; }
+
+  input, select, button { margin: 0; font: inherit; letter-spacing: inherit; color: inherit; }
+
+  /* Figma text field: filled, outlined on hover, blue outline while focused. */
+  .field {
+    width: 100%;
+    height: 24px;
+    padding: 0 7px;
+    border: 1px solid transparent;
+    border-radius: 5px;
+    background: var(--figma-color-bg-secondary);
+    outline: none;
+    appearance: none;
+  }
+
+  .field:hover { border-color: var(--figma-color-border); }
+
+  .field:focus { border-color: var(--figma-color-border-selected); }
+
+  .field::placeholder { color: var(--figma-color-text-tertiary); }
+
+  button {
+    height: 24px;
+    padding: 0 8px;
+    border: 1px solid transparent;
+    border-radius: 5px;
+    background: none;
+    white-space: nowrap;
+    outline: none;
+    cursor: default;
+  }
+
+  .large { height: 32px; }
+
+  .primary { font-weight: 500; color: var(--figma-color-text-onbrand); background: var(--figma-color-bg-brand); }
+
+  .primary:hover { background: var(--figma-color-bg-brand-hover); }
+
+  .primary:active { background: var(--figma-color-bg-brand-pressed); }
+
+  .primary:focus-visible { border-color: var(--figma-color-border-selected-strong); box-shadow: inset 0 0 0 1px var(--figma-color-bg); }
+
+  .primary:disabled { color: var(--figma-color-text-ondisabled); background: var(--figma-color-bg-disabled); }
+
+  .secondary { font-weight: 500; border-color: var(--figma-color-border); }
+
+  .secondary:hover { background: var(--figma-color-bg-hover); }
+
+  .secondary:focus-visible { border-color: var(--figma-color-border-selected); }
+
+  .secondary:disabled { color: var(--figma-color-text-disabled); border-color: var(--figma-color-border-disabled); background: none; }
+
+  .quiet { color: var(--figma-color-text-secondary); }
+
+  .quiet:hover { color: var(--figma-color-text); }
+
+  .quiet:focus-visible { border-color: var(--figma-color-border-selected); }
+
+  .error { color: var(--figma-color-text-danger); }
+
+  .logo { width: 15px; height: 16px; color: var(--figma-color-icon); }
+
+  #login { display: flex; flex-direction: column; gap: 8px; padding: 16px; }
+
+  #login .logo { width: 29px; height: 32px; margin-bottom: 8px; }
+
+  #login .intro { margin-bottom: 8px; }
+
+  #browser { display: flex; flex-direction: column; flex: 1; min-height: 0; }
+
+  #browser > header { display: flex; flex-direction: column; gap: 8px; padding: 12px 16px 8px; }
+
+  .row { display: flex; align-items: center; gap: 8px; }
+
+  .control { position: relative; flex: 1; min-width: 0; }
+
+  .control > svg { position: absolute; top: 0; left: 0; color: var(--figma-color-icon-secondary); pointer-events: none; }
+
+  #board { padding-right: 23px; }
+
+  .control > .chevron { left: auto; right: 0; }
+
+  #search { padding: 0 23px; }
+
+  #search::-webkit-search-cancel-button { display: none; }
+
+  #search:focus ~ svg { color: var(--figma-color-icon); }
+
+  #clear { position: absolute; top: 0; right: 0; width: 24px; padding: 0; color: var(--figma-color-icon-secondary); }
+
+  #clear:hover { color: var(--figma-color-icon); }
+
+  #clear:focus-visible { border-color: var(--figma-color-border-selected); }
+
+  #search:placeholder-shown ~ #clear { display: none; }
+
+  #grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+
+    /* Tiles clip with overflow hidden, which lets auto rows shrink to zero in a scroll container. */
+    grid-auto-rows: max-content;
+    align-content: start;
+    gap: 8px;
+    flex: 1;
+    overflow-y: auto;
+    scrollbar-gutter: stable;
+    padding: 0 4px 12px 16px;
+  }
+
+  /* Figma-style scrollbar: a thin pill in the 12 px gutter. It stays visible, because Chrome does not
+     repaint scrollbar styles that depend on the list's hover state. */
+  #grid::-webkit-scrollbar { width: 12px; }
+
+  #grid::-webkit-scrollbar-track { background: transparent; }
+
+  #grid::-webkit-scrollbar-thumb {
+    border: 3px solid transparent;
+    border-radius: 6px;
+    background-color: var(--figma-color-icon-tertiary);
+    background-clip: padding-box;
+  }
+
+  #grid::-webkit-scrollbar-thumb:hover { background-color: var(--figma-color-icon-secondary); }
+
+  .tile {
+    height: auto;
+    aspect-ratio: 1;
+    padding: 0;
+    border: 0;
+    border-radius: 4px;
+    overflow: hidden;
+    background: var(--figma-color-bg-secondary);
+  }
+
+  .tile img { width: 100%; height: 100%; object-fit: cover; display: block; }
+
+  .tile:hover { outline: 1px solid var(--figma-color-border-selected); outline-offset: -1px; }
+
+  .tile:focus-visible { outline: 2px solid var(--figma-color-border-selected); outline-offset: -2px; }
+
+  #grid > .wide { grid-column: 1 / -1; }
+
+  #grid > p { padding: 16px 0; text-align: center; }
+
+  #browser > footer {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    padding: 8px 16px 12px;
+    border-top: 1px solid var(--figma-color-border);
+  }
+
+  #status { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+  .actions { display: flex; gap: 8px; }
+
+  /* Pulls the borderless button's label onto the 16 px edge that the status text uses. */
+  #signout { margin-left: -8px; }
+
+  #place-all { margin-left: auto; }
+
+  dialog {
+    width: calc(100% - 32px);
+    padding: 16px;
+    border: 1px solid var(--figma-color-border);
+    border-radius: 13px;
+    color: var(--figma-color-text);
+    background: var(--figma-color-bg);
+    box-shadow: 0 2px 14px rgba(0, 0, 0, 0.15);
+  }
+
+  dialog::backdrop { background: rgba(0, 0, 0, 0.3); }
+
+  dialog[open] { display: flex; flex-direction: column; gap: 8px; }
+
+  dialog .actions { justify-content: flex-end; margin-top: 8px; }
+</style>
+
+<svg hidden>
+  <symbol id="logo" viewBox="0 0 31 34">
+    <path fill="currentColor" d="M15.389 9.632a4.82 4.82 0 0 0 4.828-4.816A4.82 4.82 0 0 0 15.39 0a4.82 4.82 0 0 0-4.829 4.816 4.82 4.82 0 0 0 4.829 4.816m-.001 24.322a4.82 4.82 0 0 0 4.828-4.816 4.82 4.82 0 0 0-4.828-4.816 4.82 4.82 0 0 0-4.829 4.816 4.82 4.82 0 0 0 4.829 4.816M4.829 15.712a4.82 4.82 0 0 0 4.828-4.816A4.82 4.82 0 0 0 4.83 6.08 4.82 4.82 0 0 0 0 10.9a4.82 4.82 0 0 0 4.829 4.816zm21.12 12.162a4.82 4.82 0 0 0 4.828-4.816 4.82 4.82 0 0 0-4.828-4.816 4.82 4.82 0 0 0-4.83 4.816 4.82 4.82 0 0 0 4.83 4.816m0-12.162a4.82 4.82 0 0 0 4.828-4.816A4.82 4.82 0 0 0 25.95 6.08a4.82 4.82 0 0 0-4.83 4.816 4.82 4.82 0 0 0 4.83 4.816M4.829 27.874a4.82 4.82 0 0 0 4.828-4.816 4.82 4.82 0 0 0-4.828-4.816A4.824 4.824 0 0 0 0 23.06a4.82 4.82 0 0 0 4.829 4.816z"/>
+  </symbol>
+</svg>
+
+<form id="login" hidden>
+  <svg class="logo" aria-hidden="true"><use href="#logo"/></svg>
+  <h1>Sign in to Cosmos</h1>
+  <p class="intro">Unofficial plugin. Your password goes only to cosmos.so and is never stored.</p>
+  <input class="field large" name="identifier" placeholder="Email or username" autocomplete="username" required>
+  <input class="field large" name="password" type="password" placeholder="Password" autocomplete="current-password" required>
+  <button class="primary large">Sign in</button>
+  <p class="error" role="alert"></p>
+</form>
+
+<main id="browser" hidden>
+  <header>
+    <div class="row">
+      <svg class="logo" aria-hidden="true"><use href="#logo"/></svg>
+      <div class="control">
+        <select id="board" class="field" aria-label="Board or section"></select>
+        <svg class="chevron" width="24" height="24" viewBox="0 0 24 24" aria-hidden="true">
+          <path d="m9.5 11 2.5 2.5 2.5-2.5" fill="none" stroke="currentColor"/>
+        </svg>
+      </div>
+    </div>
+    <div class="control">
+      <input id="search" class="field" type="search" placeholder="Search in board" aria-label="Search in board" autocomplete="off" spellcheck="false">
+      <svg width="24" height="24" viewBox="0 0 24 24" aria-hidden="true">
+        <circle cx="11.5" cy="11.5" r="4" fill="none" stroke="currentColor"/>
+        <path d="m14.5 14.5 3 3" stroke="currentColor"/>
+      </svg>
+      <button id="clear" type="button" aria-label="Clear search">
+        <svg width="24" height="24" viewBox="0 0 24 24" aria-hidden="true">
+          <path d="m9 9 6 6m0-6-6 6" stroke="currentColor"/>
+        </svg>
+      </button>
+    </div>
+  </header>
+  <div id="grid"></div>
+  <footer>
+    <p id="status" role="status"></p>
+    <div class="actions">
+      <button id="signout" class="quiet">Sign out</button>
+      <button id="place-all" class="secondary" disabled>Place all</button>
+      <button id="upload" class="primary" disabled>Upload selection</button>
+    </div>
+  </footer>
+</main>
+
+<dialog id="confirm">
+  <h2>Place all images?</h2>
+  <p id="confirm-text"></p>
+  <div class="actions">
+    <button class="secondary" value="cancel">Cancel</button>
+    <button class="primary" value="place">Place all</button>
+  </div>
+</dialog>
+
+<script id="cosmos">
+  // Cosmos client. Cosmos has no public API, so this uses the GraphQL API behind cosmos.so.
+  // Every call stays in this block, so a change on Cosmos's side touches one place.
+  const API = 'https://api.www.cosmos.so/graphql';
+  const CDN = 'https://cdn.cosmos.so/';
+
+  const LOGIN = `mutation Login($input: LoginInput!) {
+    auth { login(input: $input) { accessToken refreshToken } }
+  }`;
+
+  const REFRESH = `mutation Refresh($input: RefreshAccessTokenInput) {
+    auth { refreshAccessToken(input: $input) { accessToken refreshToken } }
+  }`;
+
+  const LOGOUT = `mutation Logout { auth { logout { success } } }`;
+
+  const ME = `query Me { me { id } }`;
+
+  const BOARDS = `query Boards($userId: UserId!, $pageCursor: String) {
+    clusters(filters: { ownerId: $userId }, meta: { pageSize: 20, pageCursor: $pageCursor }) {
+      items { id name subClusters { items { id name } } }
+      meta { nextPageCursor }
+    }
+  }`;
+
+  const ELEMENT = `id
+    generatedCaption { text }
+    ... on ElementWithMediaTile { media { __typename url width height } }`;
+
+  const IMAGES = `query Images($clusterId: ClusterId, $pageCursor: String) {
+    clusterConnections(clusterId: $clusterId, meta: { pageSize: 40, pageCursor: $pageCursor }) {
+      items { element { ${ELEMENT} } }
+      meta { nextPageCursor count }
+    }
+  }`;
+
+  // Mirrors the cosmos.so board search: the owner's id plus the board's id narrow the search to that board.
+  const SEARCH = `query Search($searchTerm: String!, $userId: UserId, $clusterId: ClusterId, $pageCursor: String) {
+    searchElements(
+      searchTerm: $searchTerm
+      filters: { userId: $userId, clusterId: $clusterId }
+      searchOrigin: SEARCH_BOX
+      meta: { pageSize: 40, pageCursor: $pageCursor }
+    ) {
+      results { element { ${ELEMENT} } }
+      meta { nextPageCursor count }
+    }
+  }`;
+
+  const POLICY = `query Policy { s3PostPolicyForImageUpload { signature policyString policyBase64String } }`;
+
+  const CREATE_IMAGE = `mutation CreateImage($input: CreateElementFromImageInput!) {
+    element { created: createFromImage(input: $input) { id } }
+  }`;
+
+  // { accessToken, refreshToken, userId }, persisted by code.js in figma.clientStorage.
+  let session = null;
+
+  function saveSession(next) {
+    session = next;
+    parent.postMessage({ pluginMessage: { type: 'save-session', session } }, '*');
+  }
+
+  async function gql(query, variables, isRetry) {
+    // Its own client name lets Cosmos tell this plugin's traffic apart. The API accepts any value.
+    const headers = { 'content-type': 'application/json', 'x-client-name': 'figma-plugin-unofficial' };
+    if (session) headers.authorization = `Bearer ${session.accessToken}`;
+
+    const res = await fetch(API, { method: 'POST', headers, body: JSON.stringify({ query, variables }) });
+    const body = await res.json().catch(() => ({}));
+    const expired = res.status === 401 || body.errors?.some((e) => e.extensions?.code === 'AUTHENTICATION');
+
+    // Access tokens last about five days. Refresh once, then sign out.
+    if (expired && session && !isRetry) {
+      await refreshTokens();
+      return gql(query, variables, true);
+    }
+    if (body.errors?.length) throw new Error(body.errors[0].message);
+    if (!res.ok) throw new Error(`Cosmos answered ${res.status}`);
+    return body.data;
+  }
+
+  async function refreshTokens() {
+    try {
+      const data = await gql(REFRESH, { input: { refreshToken: session.refreshToken } }, true);
+      saveSession({ ...session, ...data.auth.refreshAccessToken });
+    } catch {
+      saveSession(null);
+      throw new Error('Session expired. Sign in again.');
+    }
+  }
+
+  async function signIn(identifier, password) {
+    session = null;
+    const data = await gql(LOGIN, { input: { identifier, password } });
+    session = data.auth.login;
+    const { me } = await gql(ME);
+    saveSession({ ...session, userId: me.id });
+  }
+
+  async function signOut() {
+    await gql(LOGOUT, undefined, true).catch(() => {});
+    saveSession(null);
+  }
+
+  async function listBoards() {
+    const boards = [];
+    let pageCursor = null;
+    do {
+      const { clusters } = await gql(BOARDS, { userId: session.userId, pageCursor });
+      boards.push(...clusters.items);
+      pageCursor = clusters.meta.nextPageCursor;
+    } while (pageCursor);
+    return boards;
+  }
+
+  async function listImages(clusterId, pageCursor) {
+    const { clusterConnections: page } = await gql(IMAGES, { clusterId, pageCursor });
+    const images = toImages(page.items.map((item) => item.element));
+    return { images, next: page.meta.nextPageCursor, count: page.meta.count };
+  }
+
+  // Search ranks the whole board by relevance and currently answers with up to 500 results in one page.
+  async function searchImages(clusterId, searchTerm, pageCursor) {
+    const variables = { searchTerm, clusterId, userId: session.userId, pageCursor };
+    const { searchElements: page } = await gql(SEARCH, variables);
+    const images = toImages(page.results.map((result) => result.element));
+    return { images, next: page.meta.nextPageCursor, count: page.meta.count };
+  }
+
+  // Videos and media outside the Cosmos CDN cannot become Figma image fills, so they are skipped.
+  function toImages(elements) {
+    return elements
+      .filter((el) => el.media?.url?.startsWith(CDN) && el.media.__typename !== 'Video')
+      .map(({ id, generatedCaption, media }) => ({
+        name: generatedCaption?.text?.replace(/<[^>]+>/g, '') || `Cosmos ${id}`,
+        width: media.width,
+        height: media.height,
+        thumb: cdnUrl(media.url, 'webp', 300),
+
+        // The bare CDN URL is the uploaded file, nearly always a JPEG, at full quality and smallest size.
+        // Figma reads PNG, JPEG and GIF up to 4096 px, so code.js falls back to the resized PNG in src.
+        original: Math.max(media.width, media.height) <= 4096 ? media.url : null,
+        src: cdnUrl(media.url, 'png', canvasWidth(media)),
+      }));
+  }
+
+  function cdnUrl(url, format, width) {
+    const out = new URL(url);
+    out.searchParams.set('format', format);
+    out.searchParams.set('w', width);
+    return out.href;
+  }
+
+  // Figma rejects images above 4096 px on either side.
+  function canvasWidth({ width, height }) {
+    if (!width || !height) return 2048;
+    return Math.floor(width * Math.min(1, 4096 / Math.max(width, height)));
+  }
+
+  // Mirrors the web app: post the PNG to S3 with Cosmos's post policy, then create the element from its key.
+  async function uploadPng(bytes, clusterId) {
+    const { s3PostPolicyForImageUpload: policy } = await gql(POLICY);
+    const conditions = JSON.parse(policy.policyString).conditions;
+    const key = conditions[1][2];
+    const [typeRule, , typePrefix] = conditions[3];
+
+    const fields = {
+      key,
+      'X-Amz-Credential': conditions[4]['x-amz-credential'],
+      'X-Amz-Algorithm': conditions[5]['x-amz-algorithm'],
+      'X-Amz-Date': conditions[6]['x-amz-date'],
+      'Content-Type': typeRule === 'starts-with' && 'image/png'.startsWith(typePrefix) ? 'image/png' : typePrefix,
+      Policy: policy.policyBase64String,
+      'X-Amz-Signature': policy.signature,
+    };
+    const form = new FormData();
+    for (const [name, value] of Object.entries(fields)) form.append(name, value);
+    form.append('file', new Blob([bytes], { type: 'image/png' }));
+
+    // ponytail: S3 may withhold CORS headers from the null origin. The multipart POST is a simple request and
+    // still lands, so an unreadable response counts as sent and createFromImage validates the key. Read the
+    // status strictly once a real upload confirms S3 answers this origin.
+    const res = await fetch(`https://s3.amazonaws.com/${conditions[0].bucket}`, { method: 'POST', body: form }).catch(() => null);
+    if (res && res.status !== 204) throw new Error(`Upload to Cosmos storage failed (${res.status})`);
+
+    // A PNG stores width and height as big-endian uint32 at bytes 16 and 20.
+    const png = new DataView(bytes.buffer, bytes.byteOffset);
+    const input = { userId: session.userId, mediaKey: key, width: png.getUint32(16), height: png.getUint32(20), clusterId };
+    await gql(CREATE_IMAGE, { input });
+  }
+</script>
+
+<script>
+  const $ = (id) => document.getElementById(id);
+  const toMain = (msg) => parent.postMessage({ pluginMessage: msg }, '*');
+  const loginForm = $('login');
+  const HINT = 'Drag an image onto the canvas, or click to place it.';
+
+  // Select options collapse normal spaces, so sections indent with non-breaking ones.
+  const INDENT = ' '.repeat(3);
+
+  // What the grid shows: one board or section, narrowed by the search term when there is one.
+  const view = { images: [], next: null, count: 0 };
+
+  // Every load bumps this, so a slow answer for an older board or term is dropped.
+  let loadId = 0;
+  let searchTimer = 0;
+
+  function setStatus(text, isError) {
+    $('status').textContent = text;
+    $('status').classList.toggle('error', Boolean(isError));
+  }
+
+  // Any failure that cleared the session sends the user back to the login form.
+  function fail(err) {
+    if (!session) return showLogin(err.message);
+    setStatus(err.message, true);
+  }
+
+  function showLogin(message) {
+    $('browser').hidden = true;
+    loginForm.hidden = false;
+    loginForm.querySelector('.error').textContent = message || '';
+    loginForm.identifier.focus();
+  }
+
+  async function showBrowser() {
+    loginForm.hidden = true;
+    $('browser').hidden = false;
+    setStatus(HINT);
+    const select = $('board');
+    select.replaceChildren();
+    for (const board of await listBoards()) {
+      select.add(new Option(board.name, board.id));
+      for (const section of board.subClusters.items) select.add(new Option(`${INDENT}${section.name}`, section.id));
+    }
+    if (!select.options.length) return setStatus('No boards yet. Create one on cosmos.so first.');
+    await load();
+  }
+
+  function boardName() {
+    return $('board').selectedOptions[0].text.trim();
+  }
+
+  function fetchPage(clusterId, term, cursor) {
+    return term ? searchImages(clusterId, term, cursor) : listImages(clusterId, cursor);
+  }
+
+  async function load(append) {
+    const id = ++loadId;
+    const grid = $('grid');
+    const clusterId = $('board').value;
+    const term = $('search').value.trim();
+    if (!append) {
+      Object.assign(view, { images: [], next: null, count: 0 });
+      grid.replaceChildren(note('Loading'));
+      grid.scrollTop = 0;
+      $('place-all').disabled = true;
+    }
+
+    const page = await fetchPage(clusterId, term, view.next);
+    if (id !== loadId) return;
+
+    grid.querySelector('.wide')?.remove();
+    view.images.push(...page.images);
+    view.next = page.next;
+    view.count = page.count;
+    grid.append(...page.images.map(tile));
+
+    if (page.next) grid.append(moreButton());
+    else if (!view.images.length) grid.append(note(term ? `No results for “${term}”` : 'No images in this board'));
+    $('place-all').disabled = !view.images.length;
+  }
+
+  function note(text) {
+    const p = document.createElement('p');
+    p.className = 'wide';
+    p.textContent = text;
+    return p;
+  }
+
+  function moreButton() {
+    const more = document.createElement('button');
+    more.className = 'quiet wide';
+    more.textContent = 'Load more';
+    more.onclick = () => load(true).catch(fail);
+    return more;
+  }
+
+  function tile(image) {
+    const btn = document.createElement('button');
+    btn.className = 'tile';
+    btn.draggable = true;
+    btn.title = image.name;
+    btn.onclick = () => toMain({ type: 'place', image });
+
+    // Figma turns this message into a drop event on the canvas under the cursor.
+    btn.ondragend = (e) => {
+      if (e.view.length === 0) return;
+      parent.postMessage({ pluginDrop: { clientX: e.clientX, clientY: e.clientY, dropMetadata: { cosmos: image } } }, '*');
+    };
+
+    const img = document.createElement('img');
+    img.src = image.thumb;
+    img.alt = image.name;
+    img.loading = 'lazy';
+    img.draggable = false;
+    btn.append(img);
+    return btn;
+  }
+
+  // Collects every page of what the grid shows, then hands the list to code.js for the section layout.
+  async function placeAll() {
+    const clusterId = $('board').value;
+    const term = $('search').value.trim();
+    const name = term ? `“${term}” in ${boardName()}` : boardName();
+    const images = [...view.images];
+    let cursor = view.next;
+    $('place-all').disabled = true;
+
+    while (cursor) {
+      setStatus(`Loading ${images.length.toLocaleString()} of ${view.count.toLocaleString()}`);
+      const page = await fetchPage(clusterId, term, cursor);
+      images.push(...page.images);
+      cursor = page.next;
+    }
+    setStatus(`Placing ${images.length.toLocaleString()} images`);
+    toMain({ type: 'place-all', name, images });
+  }
+
+  async function uploadAll(files) {
+    const select = $('board');
+    const board = boardName();
+    for (const [i, bytes] of files.entries()) {
+      setStatus(`Uploading ${i + 1} of ${files.length} to ${board}`);
+      await uploadPng(bytes, select.value);
+    }
+    setStatus(`Uploaded ${files.length} to ${board}`);
+    toMain({ type: 'notify', text: `Saved ${files.length} to ${board} on Cosmos` });
+    await load();
+  }
+
+  loginForm.onsubmit = async (e) => {
+    e.preventDefault();
+    const btn = loginForm.querySelector('button');
+    btn.disabled = true;
+    try {
+      await signIn(loginForm.identifier.value.trim(), loginForm.password.value);
+    } catch (err) {
+      return showLogin(err.message);
+    } finally {
+      btn.disabled = false;
+    }
+    loginForm.password.value = '';
+    showBrowser().catch(fail);
+  };
+
+  $('board').onchange = () => load().catch(fail);
+
+  // Search waits for a pause in typing. Enter searches right away, Escape clears the field.
+  $('search').oninput = () => {
+    clearTimeout(searchTimer);
+    searchTimer = setTimeout(() => load().catch(fail), 300);
+  };
+
+  $('search').onkeydown = (e) => {
+    if (e.key !== 'Enter') return;
+    clearTimeout(searchTimer);
+    load().catch(fail);
+  };
+
+  $('clear').onclick = () => {
+    $('search').value = '';
+    $('search').focus();
+    load().catch(fail);
+  };
+
+  $('place-all').onclick = () => {
+    const count = view.count.toLocaleString();
+    const term = $('search').value.trim();
+    const what = term ? `${count} results for “${term}” from ${boardName()}` : `${count} items from ${boardName()}`;
+    $('confirm-text').textContent = `This places ${what} in a new section. Large boards take a while and make the file heavier.`;
+
+    // Escape keeps the previous returnValue, so reset it or a cancel could repeat the last confirm.
+    $('confirm').returnValue = '';
+    $('confirm').showModal();
+  };
+
+  // Buttons close the dialog directly. A method="dialog" form would need the iframe's allow-forms sandbox flag.
+  for (const btn of $('confirm').querySelectorAll('button')) btn.onclick = () => $('confirm').close(btn.value);
+
+  $('confirm').onclose = () => {
+    if ($('confirm').returnValue !== 'place') return;
+    placeAll().catch((err) => {
+      fail(err);
+      $('place-all').disabled = false;
+    });
+  };
+
+  $('upload').onclick = () => {
+    $('upload').disabled = true;
+    setStatus('Exporting selection');
+    toMain({ type: 'export' });
+  };
+
+  $('signout').onclick = async () => {
+    await signOut();
+    showLogin();
+  };
+
+  onmessage = ({ data }) => {
+    const msg = data.pluginMessage;
+    if (!msg) return;
+
+    if (msg.type === 'session') {
+      session = msg.session;
+      if (session) showBrowser().catch(fail);
+      else showLogin();
+    }
+    if (msg.type === 'selection') {
+      $('upload').disabled = msg.count === 0;
+      $('upload').textContent = msg.count > 1 ? `Upload ${msg.count} layers` : 'Upload selection';
+    }
+    if (msg.type === 'exported') {
+      const done = () => { $('upload').disabled = false; };
+      if (msg.error) {
+        setStatus(msg.error, true);
+        done();
+      } else {
+        uploadAll(msg.files).catch(fail).finally(done);
+      }
+    }
+    if (msg.type === 'progress') setStatus(msg.text);
+    if (msg.type === 'placed') {
+      setStatus(HINT);
+      $('place-all').disabled = !view.images.length;
+    }
+  };
+</script>

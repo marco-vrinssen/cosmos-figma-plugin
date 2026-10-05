@@ -1,0 +1,171 @@
+<!doctype html>
+<!-- Renders the README mockups from the real ui.html with placeholder data. Serve the repo root with
+     `python3 -m http.server`, open /docs/mockup.html#light or #dark, and capture 1920 x 1080. -->
+<meta charset="utf-8">
+<title>cosmos.so unofficial mockup</title>
+<style>
+  * { box-sizing: border-box; }
+
+  :root {
+    --page: #f7f5f3;
+    --ink: #0d0d0d;
+    --muted: #5c5a57;
+    --window: #fff;
+    --line: #e6e6e6;
+    --shadow: 0 2px 14px rgba(0, 0, 0, 0.15), 0 0 0 0.5px rgba(0, 0, 0, 0.2);
+  }
+
+  :root.dark {
+    --page: #1e1e1e;
+    --ink: #fff;
+    --muted: #a3a3a3;
+    --window: #2c2c2c;
+    --line: #444;
+    --shadow: 0 2px 14px rgba(0, 0, 0, 0.5), 0 0 0 0.5px rgba(255, 255, 255, 0.12);
+  }
+
+  html, body { margin: 0; width: 1920px; height: 1080px; overflow: hidden; }
+
+  body {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0 160px;
+    font-family: Inter, system-ui, sans-serif;
+    color: var(--ink);
+    background: var(--page);
+    -webkit-font-smoothing: antialiased;
+  }
+
+  .copy { width: 840px; }
+
+  .copy svg { display: block; width: 58px; height: 64px; margin-bottom: 48px; }
+
+  h1 { margin: 0 0 24px; font-size: 88px; line-height: 96px; font-weight: 600; letter-spacing: -0.02em; }
+
+  p { margin: 0; font-size: 36px; line-height: 48px; color: var(--muted); }
+
+  .stage { width: 512px; height: 960px; }
+
+  /* The plugin window at 1.6x, with a title bar like Figma's once the plugin is published. */
+  .window {
+    width: 320px;
+    overflow: hidden;
+    border-radius: 8px;
+    background: var(--window);
+    box-shadow: var(--shadow);
+    transform: scale(1.6);
+    transform-origin: top left;
+  }
+
+  .bar {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    height: 40px;
+    padding: 0 12px 0 16px;
+    border-bottom: 1px solid var(--line);
+    font-size: 11px;
+    font-weight: 600;
+  }
+
+  .bar svg { width: 11px; height: 12px; }
+
+  .bar span { flex: 1; }
+
+  iframe { display: block; width: 320px; height: 560px; border: 0; }
+</style>
+
+<svg style="display: none">
+  <symbol id="logo" viewBox="0 0 31 34">
+    <path fill="currentColor" d="M15.389 9.632a4.82 4.82 0 0 0 4.828-4.816A4.82 4.82 0 0 0 15.39 0a4.82 4.82 0 0 0-4.829 4.816 4.82 4.82 0 0 0 4.829 4.816m-.001 24.322a4.82 4.82 0 0 0 4.828-4.816 4.82 4.82 0 0 0-4.828-4.816 4.82 4.82 0 0 0-4.829 4.816 4.82 4.82 0 0 0 4.829 4.816M4.829 15.712a4.82 4.82 0 0 0 4.828-4.816A4.82 4.82 0 0 0 4.83 6.08 4.82 4.82 0 0 0 0 10.9a4.82 4.82 0 0 0 4.829 4.816zm21.12 12.162a4.82 4.82 0 0 0 4.828-4.816 4.82 4.82 0 0 0-4.828-4.816 4.82 4.82 0 0 0-4.83 4.816 4.82 4.82 0 0 0 4.83 4.816m0-12.162a4.82 4.82 0 0 0 4.828-4.816A4.82 4.82 0 0 0 25.95 6.08a4.82 4.82 0 0 0-4.83 4.816 4.82 4.82 0 0 0 4.83 4.816M4.829 27.874a4.82 4.82 0 0 0 4.828-4.816 4.82 4.82 0 0 0-4.828-4.816A4.824 4.824 0 0 0 0 23.06a4.82 4.82 0 0 0 4.829 4.816z"/>
+  </symbol>
+</svg>
+
+<div class="copy">
+  <svg aria-hidden="true"><use href="#logo"/></svg>
+  <h1>cosmos.so unofficial</h1>
+  <p>Drag images from your Cosmos boards onto the canvas, place whole boards at once, and save layers back to Cosmos.</p>
+</div>
+
+<div class="stage">
+  <div class="window">
+    <div class="bar"><svg aria-hidden="true"><use href="#logo"/></svg><span>cosmos.so unofficial</span>✕</div>
+    <iframe id="frame" sandbox="allow-scripts"></iframe>
+  </div>
+</div>
+
+<script>
+  const theme = location.hash === '#dark' ? 'dark' : 'light';
+  document.documentElement.classList.toggle('dark', theme === 'dark');
+
+  // The Figma theme tokens ui.html uses, as Figma injects them with themeColors.
+  const tokens = `
+    html.figma-light {
+      --figma-color-bg: #fff;
+      --figma-color-bg-brand: #0d99ff;
+      --figma-color-bg-brand-hover: #007be5;
+      --figma-color-bg-brand-pressed: #007be5;
+      --figma-color-bg-disabled: #d9d9d9;
+      --figma-color-bg-hover: #f5f5f5;
+      --figma-color-bg-secondary: #f5f5f5;
+      --figma-color-border: #e6e6e6;
+      --figma-color-border-disabled: #e6e6e6;
+      --figma-color-border-selected: #0d99ff;
+      --figma-color-border-selected-strong: #007be5;
+      --figma-color-icon: rgba(0, 0, 0, 0.9);
+      --figma-color-icon-secondary: rgba(0, 0, 0, 0.5);
+      --figma-color-icon-tertiary: rgba(0, 0, 0, 0.3);
+      --figma-color-text: rgba(0, 0, 0, 0.9);
+      --figma-color-text-danger: #dc3412;
+      --figma-color-text-disabled: rgba(0, 0, 0, 0.3);
+      --figma-color-text-onbrand: #fff;
+      --figma-color-text-ondisabled: #fff;
+      --figma-color-text-secondary: rgba(0, 0, 0, 0.5);
+      --figma-color-text-tertiary: rgba(0, 0, 0, 0.3);
+    }
+    html.figma-dark {
+      --figma-color-bg: #2c2c2c;
+      --figma-color-bg-brand: #0c8ce9;
+      --figma-color-bg-brand-hover: #0a6dc2;
+      --figma-color-bg-brand-pressed: #0a6dc2;
+      --figma-color-bg-disabled: #757575;
+      --figma-color-bg-hover: #383838;
+      --figma-color-bg-secondary: #383838;
+      --figma-color-border: #444;
+      --figma-color-border-disabled: #444;
+      --figma-color-border-selected: #0c8ce9;
+      --figma-color-border-selected-strong: #7cc4f8;
+      --figma-color-icon: #fff;
+      --figma-color-icon-secondary: rgba(255, 255, 255, 0.7);
+      --figma-color-icon-tertiary: rgba(255, 255, 255, 0.4);
+      --figma-color-text: #fff;
+      --figma-color-text-danger: #fca397;
+      --figma-color-text-disabled: rgba(255, 255, 255, 0.4);
+      --figma-color-text-onbrand: #fff;
+      --figma-color-text-ondisabled: #2c2c2c;
+      --figma-color-text-secondary: rgba(255, 255, 255, 0.7);
+      --figma-color-text-tertiary: rgba(255, 255, 255, 0.4);
+    }`;
+
+  // Flat neutral tiles stand in for photos, so the mockup shows no one else's images.
+  const tones = ['#e9e4dd', '#d6cfc5', '#c2b9ad', '#ede9e3', '#a99f92', '#dcd5cb', '#cbc3b8', '#b6ad9f', '#e3ddd5', '#efebe6'];
+  const swatch = (color) => 'data:image/svg+xml,' + encodeURIComponent(`<svg xmlns="http://www.w3.org/2000/svg" width="300" height="300"><rect width="300" height="300" fill="${color}"/></svg>`);
+  const images = tones.map((color, i) => ({ name: `Image ${i + 1}`, width: 1000, height: 1000, thumb: swatch(color), original: null, src: '' }));
+
+  // Replaces the network calls with the placeholder board, then shows two selected layers.
+  const demo = `<script>
+    session = { userId: 1, accessToken: 'demo', refreshToken: 'demo' };
+    listBoards = async () => [{ id: '1', name: 'Material studies', subClusters: { items: [] } }];
+    listImages = async () => ({ images: ${JSON.stringify(images)}, next: null, count: ${images.length} });
+    showBrowser();
+    onmessage({ data: { pluginMessage: { type: 'selection', count: 2 } } });
+  <\/script>`;
+
+  fetch('../ui.html')
+    .then((res) => res.text())
+    .then((html) => {
+      const boot = `<script>document.documentElement.className = 'figma-${theme}';<\/script><style>${tokens}</style>`;
+      document.getElementById('frame').srcdoc = boot + html + demo;
+    });
+</script>
