@@ -12,7 +12,7 @@ Updated 2026-10-05. Public reference repo for asking Cosmos's permission to publ
 
 Cosmos has no public API, and GraphQL introspection is off. When a call breaks, compare it with the requests the cosmos.so web app sends.
 
-- A real account confirmed sign-in, boards, placing and importing a whole board in a grid.
+- A real account confirmed sign-in with the `figma-plugin-unofficial` client name, collections, placing, importing a whole collection in a grid, creating a collection and uploading layers into it. So S3 accepts the null-origin upload and `createFromImage` works.
 - `api.www.cosmos.so/graphql` reflects the `null` origin with credentials allowed.
 - Auth failures arrive as HTTP 200 with `errors[].extensions.code` set to `AUTHENTICATION`.
 - The API accepts any `x-client-name`. The plugin sends `figma-plugin-unofficial`.
@@ -49,8 +49,6 @@ GatherOS (Figma Community plugin `1677775235799832482`, by Abhijit Rout) imports
 
 ## Not verified yet
 
-- A signed-in session with the `figma-plugin-unofficial` client name.
-- Whether S3 sends CORS headers to the `null` origin. `uploadPng` counts an unreadable response as sent.
 - Whether Figma's `createImageAsync` rejects a WebP, which the PNG fallback relies on.
 - Video fills and animated GIF fills on a real canvas, and the `popover` settings inside Figma's plugin iframe.
-- Creating a collection and uploading several designs with a real account.
+- Figma's progress toast with its Cancel button, and Cancel stopping a real upload.
