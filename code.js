@@ -1,42 +1,48 @@
-// Canvas side: session storage, placing images and exporting the selection.
+// Canvas side: session and settings storage, placing images and videos, exporting the selection.
 // Every Cosmos API call lives in ui.html, because only the iframe can send multipart uploads.
 
 // Drops onto these nodes land inside them, like Figma's own image drop.
 const CONTAINERS = ['FRAME', 'SECTION', 'COMPONENT'];
 
-// Place all lays a board out like Cosmos does: equal columns, each image into the shortest one.
+// Import in grid lays a board out like Cosmos does: equal columns, each item into the shortest one.
 const COLUMN = 400;
 const GAP = 16;
 const PADDING = 40;
 
-// Image downloads in flight while placing a whole board.
+// Space between the sections of a board and its subcollections.
+const SECTION_GAP = 160;
+
+// Downloads in flight during a grid import.
 const PARALLEL = 6;
 
-figma.showUI(__html__, { width: 320, height: 560, themeColors: true });
+const DEFAULTS = { gifs: 'animated', crop: 'original' };
 
-figma.clientStorage.getAsync('session').then((session) => {
-  figma.ui.postMessage({ type: 'session', session: session || null });
+figma.showUI(__html__, { width: 320, height: 600, themeColors: true });
+
+Promise.all([figma.clientStorage.getAsync('session'), figma.clientStorage.getAsync('settings')]).then(([session, settings]) => {
+  figma.ui.postMessage({ type: 'init', session: session || null, settings: Object.assign({}, DEFAULTS, settings) });
   postSelection();
 });
 
 figma.on('selectionchange', postSelection);
 
 figma.ui.onmessage = async (msg) => {
-  if (msg.type === 'save-session') await saveSession(msg.session);
-  if (msg.type === 'place') await place(msg.image, figma.currentPage, figma.viewport.center.x, figma.viewport.center.y);
-  if (msg.type === 'place-all') await placeAll(msg.images, msg.name);
+  if (msg.type === 'save-session') await save('session', msg.session);
+  if (msg.type === 'save-settings') await save('settings', msg.settings);
+  if (msg.type === 'place') await place(msg.item, msg.options, figma.currentPage, figma.viewport.center.x, figma.viewport.center.y);
+  if (msg.type === 'import-grid') await importGrid(msg.groups, msg.options);
   if (msg.type === 'export') await exportSelection();
   if (msg.type === 'notify') figma.notify(msg.text, { error: Boolean(msg.error) });
 };
 
 // Only drops sent by the plugin UI carry dropMetadata.cosmos. Anything else keeps Figma's default drop.
 figma.on('drop', (event) => {
-  const image = event.dropMetadata && event.dropMetadata.cosmos;
-  if (!image) return true;
+  const drop = event.dropMetadata && event.dropMetadata.cosmos;
+  if (!drop) return true;
 
   const inside = CONTAINERS.includes(event.node.type);
   const parent = inside ? event.node : figma.currentPage;
-  place(image, parent, inside ? event.x : event.absoluteX, inside ? event.y : event.absoluteY);
+  place(drop.item, drop.options, parent, inside ? event.x : event.absoluteX, inside ? event.y : event.absoluteY);
   return false;
 });
 
@@ -44,87 +50,152 @@ function postSelection() {
   figma.ui.postMessage({ type: 'selection', count: figma.currentPage.selection.length });
 }
 
-function saveSession(session) {
-  return session ? figma.clientStorage.setAsync('session', session) : figma.clientStorage.deleteAsync('session');
+function save(key, value) {
+  return value ? figma.clientStorage.setAsync(key, value) : figma.clientStorage.deleteAsync(key);
 }
 
 // The original file first, the resized PNG when Figma cannot read the original's format or size.
-function loadImage(image) {
-  const resized = () => figma.createImageAsync(image.src);
-  return image.original ? figma.createImageAsync(image.original).catch(resized) : resized();
+function loadImage(item) {
+  const resized = () => figma.createImageAsync(item.src);
+  return item.original ? figma.createImageAsync(item.original).catch(resized) : resized();
 }
 
-// Centers the image on the drop point at its pixel size, the way Figma places dropped files.
-async function place(image, parent, x, y) {
+// GIFs stay animated when the setting asks for it. Videos become video fills where the file's plan
+// allows it. Both fall back to their first frame.
+async function fillFor(item, options) {
+  if (item.kind === 'video') {
+    try {
+      return await videoFill(item);
+    } catch (err) {
+      return Object.assign(await imageFill(loadImage(item)), { stillFrame: err.message || 'Video is not available here.' });
+    }
+  }
+  const animate = item.kind === 'gif' && item.animated && options.gifs === 'animated';
+  return imageFill(animate ? figma.createImageAsync(item.animated).catch(() => loadImage(item)) : loadImage(item));
+}
+
+async function imageFill(loading) {
+  const image = await loading;
+  const size = await image.getSizeAsync();
+  return { paint: { type: 'IMAGE', imageHash: image.hash, scaleMode: 'FILL' }, width: size.width, height: size.height };
+}
+
+// Free plans and FigJam reject video, which sends the item down the first-frame path.
+async function videoFill(item) {
+  const res = await fetch(item.video);
+  if (!res.ok) throw new Error(`Video download failed (${res.status})`);
+  const video = await figma.createVideoAsync(new Uint8Array(await res.arrayBuffer()));
+  return { paint: { type: 'VIDEO', videoHash: video.hash, scaleMode: 'FILL' }, width: item.width, height: item.height };
+}
+
+// Centers the item on the drop point at its pixel size, the way Figma places dropped files.
+async function place(item, options, parent, x, y) {
   try {
-    const img = await loadImage(image);
-    const size = await img.getSizeAsync();
+    const fill = await fillFor(item, options);
     const rect = figma.createRectangle();
-    rect.name = image.name;
-    rect.resize(size.width, size.height);
-    rect.fills = [{ type: 'IMAGE', imageHash: img.hash, scaleMode: 'FILL' }];
+    rect.name = item.name;
+    rect.resize(fill.width, fill.height);
+    rect.fills = [fill.paint];
     parent.appendChild(rect);
-    rect.x = x - size.width / 2;
-    rect.y = y - size.height / 2;
+    rect.x = x - fill.width / 2;
+    rect.y = y - fill.height / 2;
     figma.currentPage.selection = [rect];
+    if (fill.stillFrame) figma.notify(`Placed the first frame instead of the video. ${fill.stillFrame}`);
   } catch (err) {
-    figma.notify(`Could not place image: ${err.message}`, { error: true });
+    figma.notify(`Could not place: ${err.message}`, { error: true });
   }
 }
 
-// Builds the whole layout from the known image sizes first, then fills the placeholders as images arrive.
-async function placeAll(images, name) {
-  const layout = masonry(images);
+// Builds every section from the known sizes first, then fills the placeholders as files arrive.
+// Square cells keep the whole file in a FILL paint, so a layer can be resized back to its original.
+async function importGrid(groups, options) {
+  const square = options.crop === 'square';
+  const layouts = groups.map((group) => masonry(group.items, square));
+  const spots = arrange(layouts.map((layout) => ({ width: layout.width + 2 * PADDING, height: layout.height + 2 * PADDING })));
   const center = figma.viewport.center;
-  const section = figma.createSection();
-  section.name = name;
-  section.resizeWithoutConstraints(layout.width + 2 * PADDING, layout.height + 2 * PADDING);
-  section.x = Math.round(center.x - section.width / 2);
-  section.y = Math.round(center.y - section.height / 2);
+  const sections = [];
+  const jobs = [];
 
-  const rects = layout.cells.map((cell, i) => {
-    const rect = figma.createRectangle();
-    rect.name = images[i].name;
-    rect.resize(cell.width, cell.height);
-    section.appendChild(rect);
-    rect.x = PADDING + cell.x;
-    rect.y = PADDING + cell.y;
-    return rect;
+  groups.forEach((group, i) => {
+    const section = figma.createSection();
+    section.name = group.name;
+    section.resizeWithoutConstraints(spots.boxes[i].width, spots.boxes[i].height);
+    section.x = Math.round(center.x - spots.width / 2 + spots.boxes[i].x);
+    section.y = Math.round(center.y - spots.height / 2 + spots.boxes[i].y);
+    layouts[i].cells.forEach((cell, j) => {
+      const rect = figma.createRectangle();
+      rect.name = group.items[j].name;
+      rect.resize(cell.width, cell.height);
+      section.appendChild(rect);
+      rect.x = PADDING + cell.x;
+      rect.y = PADDING + cell.y;
+      jobs.push({ item: group.items[j], rect });
+    });
+    sections.push(section);
   });
-  figma.currentPage.selection = [section];
-  figma.viewport.scrollAndZoomIntoView([section]);
+  figma.currentPage.selection = sections;
+  figma.viewport.scrollAndZoomIntoView(sections);
 
   let done = 0;
   let failed = 0;
-  await eachLimit(images, PARALLEL, async (image, i) => {
+  let stills = 0;
+  await eachLimit(jobs, PARALLEL, async ({ item, rect }) => {
     try {
-      const img = await loadImage(image);
-      rects[i].fills = [{ type: 'IMAGE', imageHash: img.hash, scaleMode: 'FILL' }];
+      // One retry absorbs a dropped download in a long import.
+      const fill = await fillFor(item, options).catch(() => fillFor(item, options));
+      rect.fills = [fill.paint];
+      if (fill.stillFrame) stills += 1;
     } catch (err) {
-      rects[i].remove();
+      rect.remove();
       failed += 1;
     }
     done += 1;
-    figma.ui.postMessage({ type: 'progress', text: `Placing ${done} of ${images.length}` });
+    figma.ui.postMessage({ type: 'progress', text: `Importing ${done} of ${jobs.length}` });
   });
 
-  const placed = images.length - failed;
-  figma.notify(failed ? `Placed ${placed} images, ${failed} failed to load` : `Placed ${placed} images from ${name}`);
-  figma.ui.postMessage({ type: 'placed' });
+  const imported = jobs.length - failed;
+  const where = sections.length > 1 ? `${sections.length} sections` : `“${groups[0].name}”`;
+  const notes = [`Imported ${imported} ${imported === 1 ? 'item' : 'items'} into ${where}`];
+  if (failed) notes.push(`${failed} failed to load`);
+  if (stills) notes.push(stills === 1 ? '1 video as its first frame' : `${stills} videos as first frames`);
+  figma.notify(notes.join(', '));
+  figma.ui.postMessage({ type: 'imported' });
 }
 
-// The square root of the image count as column count keeps the section roughly square.
-function masonry(images) {
-  const columns = Math.max(1, Math.ceil(Math.sqrt(images.length)));
+// The square root of the item count as column count keeps a section roughly square.
+function masonry(items, square) {
+  const columns = Math.max(1, Math.ceil(Math.sqrt(items.length)));
   const heights = new Array(columns).fill(0);
-  const cells = images.map((image) => {
+  const cells = items.map((item) => {
     const column = heights.indexOf(Math.min(...heights));
-    const height = image.width && image.height ? Math.round((COLUMN * image.height) / image.width) : COLUMN;
+    const height = !square && item.width && item.height ? Math.round((COLUMN * item.height) / item.width) : COLUMN;
     const cell = { x: column * (COLUMN + GAP), y: heights[column], width: COLUMN, height };
     heights[column] += height + GAP;
     return cell;
   });
   return { cells, width: columns * (COLUMN + GAP) - GAP, height: Math.max(...heights) - GAP };
+}
+
+// Rows of sections, as many per row as the square root of their count.
+function arrange(sizes) {
+  const perRow = Math.max(1, Math.ceil(Math.sqrt(sizes.length)));
+  let x = 0;
+  let y = 0;
+  let rowHeight = 0;
+  let width = 0;
+  const boxes = sizes.map((size, i) => {
+    if (i > 0 && i % perRow === 0) {
+      x = 0;
+      y += rowHeight + SECTION_GAP;
+      rowHeight = 0;
+    }
+    const box = { x, y, width: size.width, height: size.height };
+    x += size.width + SECTION_GAP;
+    rowHeight = Math.max(rowHeight, size.height);
+    width = Math.max(width, x - SECTION_GAP);
+    return box;
+  });
+  return { boxes, width, height: y + rowHeight };
 }
 
 async function eachLimit(items, limit, fn) {

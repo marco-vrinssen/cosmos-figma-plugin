@@ -17,12 +17,15 @@
 ### Description
 
 ```text
-An unofficial plugin for cosmos.so, not made or endorsed by Cosmos. You need a Cosmos account.
+cosmos.so unofficial is an independent plugin, not affiliated with or endorsed by Cosmos. You need a Cosmos account.
 
-Pick one of your boards or sections, then:
-- Browse or search its images.
-- Drag an image onto the canvas, or click it to place it in the middle of the view. Images come in at full resolution.
-- Click Place all to put every image of the board, or of a search, into a new section.
+Pick one of your boards or subcollections, private ones included, then:
+- Browse or search its images, GIFs and videos.
+- Drag an item onto the canvas, or click it to place it at full resolution.
+- In Select mode, pick items and import them in a grid.
+- In All mode, import the whole board with each subcollection in its own section, or every search result.
+- Choose original ratios or square crops that keep the whole file.
+- Keep GIFs animated or import them as stills. Videos arrive as video fills in paid Figma Design files, elsewhere as their first frame.
 - Select layers and click Upload selection to save them to the board as 2x PNGs.
 
 To start, run the plugin and sign in with your Cosmos email or username and password.

@@ -45,7 +45,7 @@
 
   p { margin: 0; font-size: 36px; line-height: 48px; color: var(--muted); }
 
-  .stage { width: 512px; height: 960px; }
+  .stage { width: 512px; height: 1024px; }
 
   /* The plugin window at 1.6x, with a title bar like Figma's once the plugin is published. */
   .window {
@@ -73,7 +73,7 @@
 
   .bar span { flex: 1; }
 
-  iframe { display: block; width: 320px; height: 560px; border: 0; }
+  iframe { display: block; width: 320px; height: 600px; border: 0; }
 </style>
 
 <svg style="display: none">
@@ -85,7 +85,7 @@
 <div class="copy">
   <svg aria-hidden="true"><use href="#logo"/></svg>
   <h1>cosmos.so unofficial</h1>
-  <p>Drag images from your Cosmos boards onto the canvas, place whole boards at once, and save layers back to Cosmos.</p>
+  <p>Bring images, GIFs and videos from your Cosmos boards into Figma, and save layers back to Cosmos.</p>
 </div>
 
 <div class="stage">
@@ -151,15 +151,19 @@
   // Flat neutral tiles stand in for photos, so the mockup shows no one else's images.
   const tones = ['#e9e4dd', '#d6cfc5', '#c2b9ad', '#ede9e3', '#a99f92', '#dcd5cb', '#cbc3b8', '#b6ad9f', '#e3ddd5', '#efebe6'];
   const swatch = (color) => 'data:image/svg+xml,' + encodeURIComponent(`<svg xmlns="http://www.w3.org/2000/svg" width="300" height="300"><rect width="300" height="300" fill="${color}"/></svg>`);
-  const images = tones.map((color, i) => ({ name: `Image ${i + 1}`, width: 1000, height: 1000, thumb: swatch(color), original: null, src: '' }));
+  const kinds = { 1: 'gif', 3: 'video' };
+  const items = tones.map((color, i) => ({ id: String(i + 1), kind: kinds[i] || 'image', duration: 7, name: `Image ${i + 1}`, width: 1000, height: 1000, thumb: swatch(color), original: null, src: '' }));
 
-  // Replaces the network calls with the placeholder board, then shows two selected layers.
+  // Replaces the network calls with the placeholder board, then shows Select mode with three items checked.
   const demo = `<script>
-    session = { userId: 1, accessToken: 'demo', refreshToken: 'demo' };
     listBoards = async () => [{ id: '1', name: 'Material studies', subClusters: { items: [] } }];
-    listImages = async () => ({ images: ${JSON.stringify(images)}, next: null, count: ${images.length} });
-    showBrowser();
+    listItems = async () => ({ items: ${JSON.stringify(items)}, next: null, count: ${items.length} });
+    onmessage({ data: { pluginMessage: { type: 'init', session: { userId: 1, accessToken: 'demo', refreshToken: 'demo' }, settings: { gifs: 'animated', crop: 'original' } } } });
     onmessage({ data: { pluginMessage: { type: 'selection', count: 2 } } });
+    setTimeout(() => {
+      document.querySelector('input[name=mode][value=select]').click();
+      [...document.querySelectorAll('.tile')].slice(0, 3).forEach((tile) => tile.click());
+    }, 300);
   <\/script>`;
 
   fetch('../ui.html')
