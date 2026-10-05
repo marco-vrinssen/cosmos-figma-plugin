@@ -83,15 +83,95 @@
 
   .quiet:focus-visible { border-color: var(--figma-color-border-selected); }
 
+  .icon { width: 24px; padding: 0; color: var(--figma-color-icon-secondary); }
+
+  .icon:hover { color: var(--figma-color-icon); background: var(--figma-color-bg-hover); }
+
+  .icon:focus-visible { border-color: var(--figma-color-border-selected); }
+
   .error { color: var(--figma-color-text-danger); }
 
   .logo { width: 15px; height: 16px; color: var(--figma-color-icon); }
 
-  #login { display: flex; flex-direction: column; gap: 8px; padding: 16px; }
+  /* Figma segmented control: radios underneath, so arrow keys and screen readers work as usual. */
+  .segmented { display: flex; padding: 2px; border-radius: 6px; background: var(--figma-color-bg-secondary); }
 
-  #login .logo { width: 29px; height: 32px; margin-bottom: 8px; }
+  .segmented label { position: relative; flex: 1; }
 
-  #login .intro { margin-bottom: 8px; }
+  .segmented input { position: absolute; inset: 0; margin: 0; opacity: 0; }
+
+  .segmented span { display: block; height: 20px; border-radius: 4px; line-height: 20px; text-align: center; color: var(--figma-color-text-secondary); }
+
+  .segmented input:checked + span { color: var(--figma-color-text); background: var(--figma-color-bg); box-shadow: 0 0 0 1px var(--figma-color-border); }
+
+  .segmented input:focus-visible + span { outline: 2px solid var(--figma-color-border-selected); outline-offset: -2px; }
+
+  .setting { display: grid; grid-template-columns: 48px 1fr; align-items: center; gap: 8px; }
+
+  /* Sign-in: drifting blobs and Cosmos images behind a frosted sheet. */
+  #login { position: relative; display: flex; flex-direction: column; justify-content: flex-end; flex: 1; overflow: hidden; }
+
+  .ambient { position: absolute; inset: 0; overflow: hidden; }
+
+  .blob {
+    position: absolute;
+    width: 240px;
+    height: 240px;
+    border-radius: 50%;
+    opacity: 0.55;
+    filter: blur(56px);
+    animation: wander 20s ease-in-out infinite alternate;
+  }
+
+  .blob:nth-child(1) { top: -60px; left: -80px; background: #f4a28c; }
+
+  .blob:nth-child(2) { top: 60px; right: -100px; background: #a99cf5; animation-duration: 24s; animation-delay: -8s; }
+
+  .blob:nth-child(3) { top: 220px; left: 20px; background: #8fd8c8; animation-duration: 28s; animation-delay: -14s; }
+
+  .figma-dark .blob { opacity: 0.35; }
+
+  @keyframes wander {
+    50% { transform: translate(60px, 40px) scale(1.15); }
+    100% { transform: translate(-30px, 80px) scale(0.9); }
+  }
+
+  .floater {
+    position: absolute;
+    top: 100%;
+    left: calc(var(--x) - var(--size) / 2);
+    width: var(--size);
+    aspect-ratio: var(--ratio);
+    border-radius: 6px;
+    object-fit: cover;
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.16);
+    animation: rise linear infinite;
+  }
+
+  @keyframes rise {
+    from { transform: translateY(0) rotate(var(--tilt)); }
+    to { transform: translateY(-720px) rotate(calc(var(--tilt) * -1)); }
+  }
+
+  /* Paused at their spread-out starting points, the cards still read as a collage. */
+  @media (prefers-reduced-motion: reduce) {
+    .blob, .floater { animation-play-state: paused; }
+  }
+
+  .sheet {
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    padding: 16px;
+    border-top: 1px solid var(--figma-color-border);
+    background: color-mix(in srgb, var(--figma-color-bg) 84%, transparent);
+    backdrop-filter: blur(24px);
+  }
+
+  .sheet .logo { width: 29px; height: 32px; margin-bottom: 8px; }
+
+  .sheet .intro { margin-bottom: 8px; }
 
   #browser { display: flex; flex-direction: column; flex: 1; min-height: 0; }
 
@@ -151,6 +231,7 @@
   #grid::-webkit-scrollbar-thumb:hover { background-color: var(--figma-color-icon-secondary); }
 
   .tile {
+    position: relative;
     height: auto;
     aspect-ratio: 1;
     padding: 0;
@@ -165,6 +246,49 @@
   .tile:hover { outline: 1px solid var(--figma-color-border-selected); outline-offset: -1px; }
 
   .tile:focus-visible { outline: 2px solid var(--figma-color-border-selected); outline-offset: -2px; }
+
+  .tile[aria-pressed=true] { outline: 2px solid var(--figma-color-border-selected); outline-offset: -2px; }
+
+  /* Selected tiles get Figma's blue check in the corner. */
+  .tile[aria-pressed=true]::before {
+    content: '';
+    position: absolute;
+    top: 6px;
+    right: 6px;
+    width: 16px;
+    height: 16px;
+    border-radius: 50%;
+    background: var(--figma-color-bg-brand);
+  }
+
+  .tile[aria-pressed=true]::after {
+    content: '';
+    position: absolute;
+    top: 10px;
+    right: 11px;
+    width: 4px;
+    height: 7px;
+    border: solid var(--figma-color-text-onbrand);
+    border-width: 0 1.5px 1.5px 0;
+    transform: rotate(45deg);
+  }
+
+  .badge {
+    position: absolute;
+    left: 6px;
+    bottom: 6px;
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    padding: 0 4px;
+    border-radius: 4px;
+    font-weight: 500;
+    color: #fff;
+    background: rgba(0, 0, 0, 0.6);
+  }
+
+  /* A small play triangle before a video's duration. */
+  .badge.video::before { content: ''; border: solid transparent; border-width: 3.5px 0 3.5px 6px; border-left-color: currentColor; }
 
   #grid > .wide { grid-column: 1 / -1; }
 
@@ -182,10 +306,23 @@
 
   .actions { display: flex; gap: 8px; }
 
-  /* Pulls the borderless button's label onto the 16 px edge that the status text uses. */
-  #signout { margin-left: -8px; }
+  #import { margin-left: auto; }
 
-  #place-all { margin-left: auto; }
+  #settings {
+    inset: 44px 8px auto auto;
+    width: 240px;
+    margin: 0;
+    padding: 12px;
+    border: 1px solid var(--figma-color-border);
+    border-radius: 13px;
+    color: var(--figma-color-text);
+    background: var(--figma-color-bg);
+    box-shadow: 0 2px 14px rgba(0, 0, 0, 0.15);
+  }
+
+  #settings:popover-open { display: flex; flex-direction: column; gap: 8px; }
+
+  #settings button { align-self: flex-start; margin-top: 4px; }
 
   dialog {
     width: calc(100% - 32px);
@@ -201,6 +338,8 @@
 
   dialog[open] { display: flex; flex-direction: column; gap: 8px; }
 
+  dialog .setting { margin-top: 4px; }
+
   dialog .actions { justify-content: flex-end; margin-top: 8px; }
 </style>
 
@@ -210,26 +349,40 @@
   </symbol>
 </svg>
 
-<form id="login" hidden>
-  <svg class="logo" aria-hidden="true"><use href="#logo"/></svg>
-  <h1>Sign in to Cosmos</h1>
-  <p class="intro">Unofficial plugin. Your password goes only to cosmos.so and is never stored.</p>
-  <input class="field large" name="identifier" placeholder="Email or username" autocomplete="username" required>
-  <input class="field large" name="password" type="password" placeholder="Password" autocomplete="current-password" required>
-  <button class="primary large">Sign in</button>
-  <p class="error" role="alert"></p>
-</form>
+<section id="login" hidden>
+  <div class="ambient" aria-hidden="true">
+    <span class="blob"></span>
+    <span class="blob"></span>
+    <span class="blob"></span>
+    <div id="floaters"></div>
+  </div>
+  <form id="login-form" class="sheet">
+    <svg class="logo" aria-hidden="true"><use href="#logo"/></svg>
+    <h1>Sign in to Cosmos</h1>
+    <p class="intro">cosmos.so unofficial is an independent plugin, not affiliated with or endorsed by Cosmos. Your password goes only to cosmos.so and is never stored.</p>
+    <input class="field large" name="identifier" placeholder="Email or username" autocomplete="username" required>
+    <input class="field large" name="password" type="password" placeholder="Password" autocomplete="current-password" required>
+    <button class="primary large">Sign in</button>
+    <p class="error" role="alert"></p>
+  </form>
+</section>
 
 <main id="browser" hidden>
   <header>
     <div class="row">
-      <svg class="logo" aria-hidden="true"><use href="#logo"/></svg>
       <div class="control">
-        <select id="board" class="field" aria-label="Board or section"></select>
+        <select id="board" class="field" aria-label="Board or subcollection"></select>
         <svg class="chevron" width="24" height="24" viewBox="0 0 24 24" aria-hidden="true">
           <path d="m9.5 11 2.5 2.5 2.5-2.5" fill="none" stroke="currentColor"/>
         </svg>
       </div>
+      <button id="menu" class="icon" popovertarget="settings" aria-label="Settings">
+        <svg width="24" height="24" viewBox="0 0 24 24" aria-hidden="true">
+          <circle cx="7.5" cy="12" r="1" fill="currentColor"/>
+          <circle cx="12" cy="12" r="1" fill="currentColor"/>
+          <circle cx="16.5" cy="12" r="1" fill="currentColor"/>
+        </svg>
+      </button>
     </div>
     <div class="control">
       <input id="search" class="field" type="search" placeholder="Search in board" aria-label="Search in board" autocomplete="off" spellcheck="false">
@@ -243,24 +396,49 @@
         </svg>
       </button>
     </div>
+    <div class="segmented" role="radiogroup" aria-label="Import mode">
+      <label><input type="radio" name="mode" value="single" checked><span>Single</span></label>
+      <label><input type="radio" name="mode" value="select"><span>Select</span></label>
+      <label><input type="radio" name="mode" value="all"><span>All</span></label>
+    </div>
   </header>
   <div id="grid"></div>
   <footer>
     <p id="status" role="status"></p>
     <div class="actions">
-      <button id="signout" class="quiet">Sign out</button>
-      <button id="place-all" class="secondary" disabled>Place all</button>
-      <button id="upload" class="primary" disabled>Upload selection</button>
+      <button id="upload" class="secondary" disabled>Upload selection</button>
+      <button id="import" class="primary" hidden>Import all in grid</button>
     </div>
   </footer>
 </main>
 
+<div id="settings" popover>
+  <h2>Settings</h2>
+  <div class="setting">
+    <span>GIFs</span>
+    <div class="segmented" role="radiogroup" aria-label="GIFs">
+      <label><input type="radio" name="gifs" value="animated"><span>Animated</span></label>
+      <label><input type="radio" name="gifs" value="still"><span>Still</span></label>
+    </div>
+  </div>
+  <p>Videos arrive as video fills in paid Figma Design files, elsewhere as their first frame.</p>
+  <button id="signout" class="secondary">Sign out</button>
+</div>
+
 <dialog id="confirm">
-  <h2>Place all images?</h2>
+  <h2 id="confirm-title"></h2>
   <p id="confirm-text"></p>
+  <div class="setting">
+    <span>Images</span>
+    <div class="segmented" role="radiogroup" aria-label="Images">
+      <label><input type="radio" name="crop" value="original"><span>Original ratio</span></label>
+      <label><input type="radio" name="crop" value="square"><span>Square</span></label>
+    </div>
+  </div>
+  <p>Square crops keep the whole file, so a layer can be resized back to its original ratio.</p>
   <div class="actions">
     <button class="secondary" value="cancel">Cancel</button>
-    <button class="primary" value="place">Place all</button>
+    <button class="primary" value="import">Import</button>
   </div>
 </dialog>
 
@@ -284,17 +462,23 @@
 
   const BOARDS = `query Boards($userId: UserId!, $pageCursor: String) {
     clusters(filters: { ownerId: $userId }, meta: { pageSize: 20, pageCursor: $pageCursor }) {
-      items { id name subClusters { items { id name } } }
+      items { id name subClusters { items { id name numberOfElements } } }
       meta { nextPageCursor }
     }
   }`;
 
   const ELEMENT = `id
     generatedCaption { text }
-    ... on ElementWithMediaTile { media { __typename url width height } }`;
+    ... on ElementWithMediaTile {
+      media {
+        __typename url width height
+        ... on AnimatedImage { staticThumbnailUrl }
+        ... on Video { thumbnail { url } duration }
+      }
+    }`;
 
-  const IMAGES = `query Images($clusterId: ClusterId, $pageCursor: String) {
-    clusterConnections(clusterId: $clusterId, meta: { pageSize: 40, pageCursor: $pageCursor }) {
+  const ITEMS = `query Items($clusterId: ClusterId, $pageCursor: String, $pageSize: Int) {
+    clusterConnections(clusterId: $clusterId, meta: { pageSize: $pageSize, pageCursor: $pageCursor }) {
       items { element { ${ELEMENT} } }
       meta { nextPageCursor count }
     }
@@ -369,6 +553,7 @@
     saveSession(null);
   }
 
+  // Private boards come back too, because every request carries the session.
   async function listBoards() {
     const boards = [];
     let pageCursor = null;
@@ -380,35 +565,51 @@
     return boards;
   }
 
-  async function listImages(clusterId, pageCursor) {
-    const { clusterConnections: page } = await gql(IMAGES, { clusterId, pageCursor });
-    const images = toImages(page.items.map((item) => item.element));
-    return { images, next: page.meta.nextPageCursor, count: page.meta.count };
+  // A board's own items. Its subcollections hold items of their own that this list leaves out.
+  async function listItems(clusterId, pageCursor, pageSize = 40) {
+    const { clusterConnections: page } = await gql(ITEMS, { clusterId, pageCursor, pageSize });
+    const items = toItems(page.items.map((entry) => entry.element));
+    return { items, next: page.meta.nextPageCursor, count: page.meta.count };
   }
 
   // Search ranks the whole board by relevance and currently answers with up to 500 results in one page.
-  async function searchImages(clusterId, searchTerm, pageCursor) {
-    const variables = { searchTerm, clusterId, userId: session.userId, pageCursor };
+  async function searchItems(clusterId, searchTerm, pageCursor) {
+    const variables = { searchTerm, clusterId, userId: session?.userId, pageCursor };
     const { searchElements: page } = await gql(SEARCH, variables);
-    const images = toImages(page.results.map((result) => result.element));
-    return { images, next: page.meta.nextPageCursor, count: page.meta.count };
+    const items = toItems(page.results.map((result) => result.element));
+    return { items, next: page.meta.nextPageCursor, count: page.meta.count };
   }
 
-  // Videos and media outside the Cosmos CDN cannot become Figma image fills, so they are skipped.
-  function toImages(elements) {
-    return elements
-      .filter((el) => el.media?.url?.startsWith(CDN) && el.media.__typename !== 'Video')
-      .map(({ id, generatedCaption, media }) => ({
-        name: generatedCaption?.text?.replace(/<[^>]+>/g, '') || `Cosmos ${id}`,
-        width: media.width,
-        height: media.height,
-        thumb: cdnUrl(media.url, 'webp', 300),
+  function toItems(elements) {
+    return elements.map(toItem).filter(Boolean);
+  }
 
-        // The bare CDN URL is the uploaded file, nearly always a JPEG, at full quality and smallest size.
-        // Figma reads PNG, JPEG and GIF up to 4096 px, so code.js falls back to the resized PNG in src.
-        original: Math.max(media.width, media.height) <= 4096 ? media.url : null,
-        src: cdnUrl(media.url, 'png', canvasWidth(media)),
-      }));
+  // Every item carries a still image for the grid and for fallbacks: the image itself, a GIF's first
+  // frame or a video's thumbnail. Media outside the Cosmos CDN is skipped.
+  function toItem({ id, generatedCaption, media }) {
+    if (!media?.url?.startsWith(CDN)) return null;
+    const kind = { AnimatedImage: 'gif', Video: 'video' }[media.__typename] || 'image';
+    let still = media.url;
+    if (kind === 'gif') still = media.staticThumbnailUrl || media.url;
+    if (kind === 'video') still = media.thumbnail?.url;
+    if (!still?.startsWith(CDN)) return null;
+
+    // The bare CDN URL is the uploaded file at full quality. Figma reads PNG, JPEG and GIF up to
+    // 4096 px, so code.js falls back to the resized PNG in src.
+    const fits = Math.max(media.width, media.height) <= 4096;
+    return {
+      id: String(id),
+      kind,
+      name: generatedCaption?.text?.replace(/<[^>]+>/g, '') || `Cosmos ${id}`,
+      width: media.width,
+      height: media.height,
+      duration: media.duration,
+      thumb: cdnUrl(still, 'webp', 300),
+      original: fits ? still : null,
+      src: cdnUrl(still, 'png', canvasWidth(media)),
+      animated: kind === 'gif' && fits ? media.url : null,
+      video: kind === 'video' ? media.url : null,
+    };
   }
 
   function cdnUrl(url, format, width) {
@@ -460,18 +661,34 @@
 <script>
   const $ = (id) => document.getElementById(id);
   const toMain = (msg) => parent.postMessage({ pluginMessage: msg }, '*');
-  const loginForm = $('login');
-  const HINT = 'Drag an image onto the canvas, or click to place it.';
+  const fmt = (n) => n.toLocaleString();
+  const plural = (n, word) => `${fmt(n)} ${word}${n === 1 ? '' : 's'}`;
+  const loginForm = $('login-form');
 
-  // Select options collapse normal spaces, so sections indent with non-breaking ones.
+  // Select options collapse normal spaces, so subcollections indent with non-breaking ones.
   const INDENT = ' '.repeat(3);
 
-  // What the grid shows: one board or section, narrowed by the search term when there is one.
-  const view = { images: [], next: null, count: 0 };
+  // Cosmos's own public picks float behind the sign-in form.
+  const PUBLIC_PICKS = '1996613743';
+
+  const HINTS = {
+    single: 'Drag an item onto the canvas, or click to place it.',
+    select: 'Click items to select them, then import them in a grid.',
+  };
+
+  // Boards and subcollections by id, each with the label its section gets and its subcollections.
+  const boards = new Map();
+
+  // What the grid shows: one board or subcollection, narrowed by the search term when there is one.
+  const view = { items: [], next: null, count: 0, loading: false };
+  const selected = new Set();
+  let settings = { gifs: 'animated', crop: 'original' };
+  let mode = 'single';
 
   // Every load bumps this, so a slow answer for an older board or term is dropped.
   let loadId = 0;
   let searchTimer = 0;
+  let ambientStarted = false;
 
   function setStatus(text, isError) {
     $('status').textContent = text;
@@ -486,57 +703,96 @@
 
   function showLogin(message) {
     $('browser').hidden = true;
-    loginForm.hidden = false;
+    $('login').hidden = false;
     loginForm.querySelector('.error').textContent = message || '';
     loginForm.identifier.focus();
+    startAmbient();
+  }
+
+  async function startAmbient() {
+    if (ambientStarted) return;
+    ambientStarted = true;
+    try {
+      const { items } = await listItems(PUBLIC_PICKS, null, 12);
+      $('floaters').append(...items.map(floater));
+    } catch {
+      // The blobs carry the background on their own.
+    }
+  }
+
+  // Each card rises at its own speed, size and tilt. Negative delays start them at evenly spread,
+  // shuffled points of their path, so the collage is balanced from the first frame.
+  function floater(item, i, all) {
+    const img = document.createElement('img');
+    const duration = 40 + (i % 5) * 8;
+    img.className = 'floater';
+    img.src = item.thumb;
+    img.alt = '';
+    img.style.cssText = [
+      `--x: ${(i * 37) % 100}%`,
+      `--size: ${64 + (i % 3) * 20}px`,
+      `--tilt: ${((i % 7) - 3) * 3}deg`,
+      `--ratio: ${item.width && item.height ? `${item.width} / ${item.height}` : '1'}`,
+      `animation-duration: ${duration}s`,
+      `animation-delay: -${(duration * ((i * 5) % all.length)) / all.length}s`,
+    ].join(';');
+    return img;
   }
 
   async function showBrowser() {
-    loginForm.hidden = true;
+    $('login').hidden = true;
     $('browser').hidden = false;
-    setStatus(HINT);
     const select = $('board');
     select.replaceChildren();
+    boards.clear();
     for (const board of await listBoards()) {
-      select.add(new Option(board.name, board.id));
-      for (const section of board.subClusters.items) select.add(new Option(`${INDENT}${section.name}`, section.id));
+      const parentBoard = { id: String(board.id), label: board.name, subs: [] };
+      boards.set(parentBoard.id, parentBoard);
+      select.add(new Option(board.name, parentBoard.id));
+      for (const sub of board.subClusters.items) {
+        const child = { id: String(sub.id), label: `${board.name} / ${sub.name}`, subs: [], count: sub.numberOfElements };
+        parentBoard.subs.push(child);
+        boards.set(child.id, child);
+        select.add(new Option(`${INDENT}${sub.name}`, child.id));
+      }
     }
     if (!select.options.length) return setStatus('No boards yet. Create one on cosmos.so first.');
     await load();
   }
 
-  function boardName() {
-    return $('board').selectedOptions[0].text.trim();
-  }
+  const currentBoard = () => boards.get($('board').value);
 
-  function fetchPage(clusterId, term, cursor) {
-    return term ? searchImages(clusterId, term, cursor) : listImages(clusterId, cursor);
+  const searchTerm = () => $('search').value.trim();
+
+  function fetchPage(boardId, term, cursor) {
+    return term ? searchItems(boardId, term, cursor) : listItems(boardId, cursor);
   }
 
   async function load(append) {
     const id = ++loadId;
     const grid = $('grid');
-    const clusterId = $('board').value;
-    const term = $('search').value.trim();
+    const term = searchTerm();
     if (!append) {
-      Object.assign(view, { images: [], next: null, count: 0 });
+      Object.assign(view, { items: [], next: null, count: 0, loading: true });
+      selected.clear();
       grid.replaceChildren(note('Loading'));
       grid.scrollTop = 0;
-      $('place-all').disabled = true;
+      updateActions();
     }
 
-    const page = await fetchPage(clusterId, term, view.next);
+    const page = await fetchPage(currentBoard().id, term, view.next);
     if (id !== loadId) return;
 
+    view.loading = false;
     grid.querySelector('.wide')?.remove();
-    view.images.push(...page.images);
+    view.items.push(...page.items);
     view.next = page.next;
     view.count = page.count;
-    grid.append(...page.images.map(tile));
+    grid.append(...page.items.map(tile));
 
     if (page.next) grid.append(moreButton());
-    else if (!view.images.length) grid.append(note(term ? `No results for “${term}”` : 'No images in this board'));
-    $('place-all').disabled = !view.images.length;
+    else if (!view.items.length) grid.append(note(term ? `No results for “${term}”` : 'Nothing in this board itself'));
+    updateActions();
   }
 
   function note(text) {
@@ -554,57 +810,136 @@
     return more;
   }
 
-  function tile(image) {
+  function tile(item) {
     const btn = document.createElement('button');
     btn.className = 'tile';
+    btn.dataset.id = item.id;
     btn.draggable = true;
-    btn.title = image.name;
-    btn.onclick = () => toMain({ type: 'place', image });
+    btn.title = item.name;
+    if (mode === 'select') btn.setAttribute('aria-pressed', String(selected.has(item.id)));
+    btn.onclick = () => (mode === 'select' ? toggle(item.id, btn) : toMain({ type: 'place', item, options: settings }));
 
     // Figma turns this message into a drop event on the canvas under the cursor.
     btn.ondragend = (e) => {
       if (e.view.length === 0) return;
-      parent.postMessage({ pluginDrop: { clientX: e.clientX, clientY: e.clientY, dropMetadata: { cosmos: image } } }, '*');
+      const cosmos = { item, options: settings };
+      parent.postMessage({ pluginDrop: { clientX: e.clientX, clientY: e.clientY, dropMetadata: { cosmos } } }, '*');
     };
 
     const img = document.createElement('img');
-    img.src = image.thumb;
-    img.alt = image.name;
+    img.src = item.thumb;
+    img.alt = item.name;
     img.loading = 'lazy';
     img.draggable = false;
     btn.append(img);
+    if (item.kind !== 'image') btn.append(badge(item));
     return btn;
   }
 
-  // Collects every page of what the grid shows, then hands the list to code.js for the section layout.
-  async function placeAll() {
-    const clusterId = $('board').value;
-    const term = $('search').value.trim();
-    const name = term ? `“${term}” in ${boardName()}` : boardName();
-    const images = [...view.images];
-    let cursor = view.next;
-    $('place-all').disabled = true;
+  function badge(item) {
+    const span = document.createElement('span');
+    span.className = `badge ${item.kind}`;
+    span.textContent = item.kind === 'gif' ? 'GIF' : duration(item.duration);
+    return span;
+  }
 
-    while (cursor) {
-      setStatus(`Loading ${images.length.toLocaleString()} of ${view.count.toLocaleString()}`);
-      const page = await fetchPage(clusterId, term, cursor);
-      images.push(...page.images);
-      cursor = page.next;
+  function duration(seconds) {
+    if (!seconds) return 'Video';
+    const s = Math.round(seconds);
+    return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`;
+  }
+
+  function toggle(id, btn) {
+    if (selected.has(id)) selected.delete(id);
+    else selected.add(id);
+    btn.setAttribute('aria-pressed', String(selected.has(id)));
+    updateActions();
+  }
+
+  function setMode(next) {
+    mode = next;
+    if (mode !== 'select') selected.clear();
+    for (const btn of $('grid').querySelectorAll('.tile')) {
+      if (mode === 'select') btn.setAttribute('aria-pressed', String(selected.has(btn.dataset.id)));
+      else btn.removeAttribute('aria-pressed');
     }
-    setStatus(`Placing ${images.length.toLocaleString()} images`);
-    toMain({ type: 'place-all', name, images });
+    updateActions();
+  }
+
+  // What an import covers: the selection, the search results, or the board plus its subcollections.
+  function importScope() {
+    const board = currentBoard();
+    const term = searchTerm();
+    if (!board || view.loading) return { count: 0, text: 'Loading' };
+    if (mode === 'select') return { count: selected.size, text: `The ${plural(selected.size, 'selected item')} go into a new section.` };
+    if (term) return { count: view.count, text: `All ${plural(view.count, 'result')} for “${term}” go into a new section.` };
+    const inSubs = board.subs.reduce((sum, sub) => sum + sub.count, 0);
+    if (!board.subs.length) return { count: view.count, text: `All ${plural(view.count, 'item')} from ${board.label} go into a new section.` };
+    const subs = plural(board.subs.length, 'subcollection');
+    return { count: view.count + inSubs, text: `${plural(view.count, 'item')} from ${board.label} and ${fmt(inSubs)} from ${subs}, each in its own section.` };
+  }
+
+  function updateActions() {
+    const button = $('import');
+    const scope = importScope();
+    button.hidden = mode === 'single';
+    button.disabled = scope.count === 0;
+    button.textContent = mode === 'select' && selected.size ? `Import ${fmt(selected.size)} in grid` : mode === 'select' ? 'Import in grid' : 'Import all in grid';
+    setStatus(mode === 'all' ? scope.text : HINTS[mode]);
+  }
+
+  // Loads every page of a source in large pages, so big boards need only a few requests.
+  async function collectAll(fetchPage, label) {
+    const items = [];
+    let cursor = null;
+    do {
+      setStatus(`Loading ${label}, ${fmt(items.length)} so far`);
+      const page = await fetchPage(cursor);
+      items.push(...page.items);
+      cursor = page.next;
+    } while (cursor);
+    return items;
+  }
+
+  // Subcollections become their own sections, because a board's list leaves their items out.
+  async function collectGroups() {
+    const board = currentBoard();
+    const term = searchTerm();
+    if (mode === 'select') return [{ name: board.label, items: view.items.filter((item) => selected.has(item.id)) }];
+    if (term) return [{ name: `“${term}” in ${board.label}`, items: await collectAll((cursor) => searchItems(board.id, term, cursor), 'results') }];
+
+    const groups = [];
+    for (const source of [board, ...board.subs]) {
+      const items = await collectAll((cursor) => listItems(source.id, cursor, 500), source.label);
+      if (items.length) groups.push({ name: source.label, items });
+    }
+    return groups;
+  }
+
+  async function runImport() {
+    $('import').disabled = true;
+    const groups = await collectGroups();
+    const total = groups.reduce((sum, group) => sum + group.items.length, 0);
+    if (!total) return updateActions();
+    setStatus(`Importing ${plural(total, 'item')}`);
+    toMain({ type: 'import-grid', groups, options: settings });
   }
 
   async function uploadAll(files) {
     const select = $('board');
-    const board = boardName();
+    const board = currentBoard().label;
     for (const [i, bytes] of files.entries()) {
       setStatus(`Uploading ${i + 1} of ${files.length} to ${board}`);
       await uploadPng(bytes, select.value);
     }
-    setStatus(`Uploaded ${files.length} to ${board}`);
     toMain({ type: 'notify', text: `Saved ${files.length} to ${board} on Cosmos` });
     await load();
+  }
+
+  function reflectSettings() {
+    for (const name of ['gifs', 'crop']) {
+      document.querySelector(`input[name=${name}][value=${settings[name]}]`).checked = true;
+    }
   }
 
   loginForm.onsubmit = async (e) => {
@@ -642,11 +977,20 @@
     load().catch(fail);
   };
 
-  $('place-all').onclick = () => {
-    const count = view.count.toLocaleString();
-    const term = $('search').value.trim();
-    const what = term ? `${count} results for “${term}” from ${boardName()}` : `${count} items from ${boardName()}`;
-    $('confirm-text').textContent = `This places ${what} in a new section. Large boards take a while and make the file heavier.`;
+  for (const input of document.querySelectorAll('input[name=mode]')) input.onchange = () => setMode(input.value);
+
+  for (const input of document.querySelectorAll('input[name=gifs], input[name=crop]')) {
+    input.onchange = () => {
+      settings = { ...settings, [input.name]: input.value };
+      toMain({ type: 'save-settings', settings });
+    };
+  }
+
+  $('import').onclick = () => {
+    const scope = importScope();
+    const heavy = scope.count > 100 ? ' Large imports take a while and make the file heavier.' : '';
+    $('confirm-title').textContent = `Import ${plural(scope.count, 'item')} in a grid?`;
+    $('confirm-text').textContent = scope.text + heavy;
 
     // Escape keeps the previous returnValue, so reset it or a cancel could repeat the last confirm.
     $('confirm').returnValue = '';
@@ -654,13 +998,13 @@
   };
 
   // Buttons close the dialog directly. A method="dialog" form would need the iframe's allow-forms sandbox flag.
-  for (const btn of $('confirm').querySelectorAll('button')) btn.onclick = () => $('confirm').close(btn.value);
+  for (const btn of $('confirm').querySelectorAll('.actions button')) btn.onclick = () => $('confirm').close(btn.value);
 
   $('confirm').onclose = () => {
-    if ($('confirm').returnValue !== 'place') return;
-    placeAll().catch((err) => {
+    if ($('confirm').returnValue !== 'import') return;
+    runImport().catch((err) => {
       fail(err);
-      $('place-all').disabled = false;
+      updateActions();
     });
   };
 
@@ -671,6 +1015,7 @@
   };
 
   $('signout').onclick = async () => {
+    $('settings').hidePopover();
     await signOut();
     showLogin();
   };
@@ -679,8 +1024,10 @@
     const msg = data.pluginMessage;
     if (!msg) return;
 
-    if (msg.type === 'session') {
+    if (msg.type === 'init') {
       session = msg.session;
+      settings = msg.settings;
+      reflectSettings();
       if (session) showBrowser().catch(fail);
       else showLogin();
     }
@@ -698,9 +1045,6 @@
       }
     }
     if (msg.type === 'progress') setStatus(msg.text);
-    if (msg.type === 'placed') {
-      setStatus(HINT);
-      $('place-all').disabled = !view.images.length;
-    }
+    if (msg.type === 'imported') updateActions();
   };
 </script>
