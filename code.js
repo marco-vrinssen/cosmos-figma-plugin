@@ -47,7 +47,41 @@ figma.on('drop', (event) => {
 });
 
 function postSelection() {
-  figma.ui.postMessage({ type: 'selection', count: figma.currentPage.selection.length });
+  figma.ui.postMessage({ type: 'selection', count: uploadRoots(figma.currentPage.selection).length });
+}
+
+// A layer inside a design uploads the whole design, so nested frames never go up on their own.
+// A selected section uploads each design in it.
+function uploadRoots(selection) {
+  const roots = [];
+  const seen = new Set();
+  const add = (node) => {
+    if (node.type === 'SECTION') {
+      for (const child of node.children) add(child);
+    } else if (!seen.has(node.id)) {
+      seen.add(node.id);
+      roots.push(node);
+    }
+  };
+  for (const node of selection) add(outermost(node));
+  return roots;
+}
+
+// The outermost layer below the page or a section, which is where a design ends.
+function outermost(node) {
+  let root = node;
+  while (root.parent && root.parent.type !== 'PAGE' && root.parent.type !== 'SECTION') root = root.parent;
+  return root;
+}
+
+// Image layers go up at the resolution of their image, everything else at 2x.
+async function exportScale(node) {
+  const fills = 'fills' in node && Array.isArray(node.fills) ? node.fills : [];
+  const fill = !('children' in node) && fills.length === 1 && fills[0].type === 'IMAGE' ? fills[0] : null;
+  const image = fill && fill.imageHash ? figma.getImageByHash(fill.imageHash) : null;
+  if (!image) return 2;
+  const size = await image.getSizeAsync();
+  return Math.min(4, Math.max(1, size.width / node.width));
 }
 
 function save(key, value) {
@@ -213,8 +247,9 @@ async function eachLimit(items, limit, fn) {
 async function exportSelection() {
   try {
     const files = [];
-    for (const node of figma.currentPage.selection) {
-      files.push(await node.exportAsync({ format: 'PNG', constraint: { type: 'SCALE', value: 2 } }));
+    for (const node of uploadRoots(figma.currentPage.selection)) {
+      const scale = await exportScale(node);
+      files.push(await node.exportAsync({ format: 'PNG', constraint: { type: 'SCALE', value: scale } }));
     }
     figma.ui.postMessage({ type: 'exported', files });
   } catch (err) {
