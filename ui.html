@@ -208,6 +208,8 @@
     .blob, .floater { animation-play-state: paused; }
 
     .segmented::before { transition: none; }
+
+    .tile:not(.loaded) { animation: none; }
   }
 
   .sheet {
@@ -238,6 +240,9 @@
   .select { display: flex; align-items: center; padding-right: 23px; text-align: left; }
 
   .select span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+  /* Like Figma, the picker shows its blue outline for keyboard focus only. */
+  .select:focus:not(:focus-visible) { border-color: transparent; }
 
   /* Figma's menus are dark in both themes, with a blue highlight and a check on the current item. */
   .menu {
@@ -298,18 +303,6 @@
 
   #menu { position: relative; }
 
-  .spinner {
-    display: block;
-    width: 16px;
-    height: 16px;
-    margin: 0 auto;
-    border: 1.5px solid var(--figma-color-border);
-    border-top-color: var(--figma-color-icon-secondary);
-    border-radius: 50%;
-    animation: spin 0.8s linear infinite;
-  }
-
-  @keyframes spin { to { transform: rotate(360deg); } }
 
   .control > .chevron { left: auto; right: 0; }
 
@@ -367,7 +360,14 @@
     background: var(--figma-color-bg-secondary);
   }
 
-  .tile img { width: 100%; height: 100%; object-fit: cover; display: block; }
+  .tile img { display: block; width: 100%; height: 100%; object-fit: cover; opacity: 0; transition: opacity 0.15s; }
+
+  /* A tile pulses until its image has loaded, then the image fades in. Placeholders keep pulsing. */
+  .tile:not(.loaded) { animation: pulse 1.4s ease-in-out infinite; }
+
+  .tile.loaded img { opacity: 1; }
+
+  @keyframes pulse { 50% { background-color: var(--figma-color-bg-tertiary); } }
 
   .tile:hover { outline: 1px solid var(--figma-color-border-selected); outline-offset: -1px; }
 
@@ -804,7 +804,8 @@
     // A PNG stores width and height as big-endian uint32 at bytes 16 and 20.
     const png = new DataView(bytes.buffer, bytes.byteOffset);
     const input = { userId: session.userId, mediaKey: key, width: png.getUint32(16), height: png.getUint32(20), clusterId };
-    await gql(CREATE_IMAGE, { input });
+    const data = await gql(CREATE_IMAGE, { input });
+    return String(data.element.created.id);
   }
 </script>
 
@@ -827,7 +828,7 @@
   const boards = new Map();
 
   // What the grid shows: one board or subcollection, narrowed by the search term when there is one.
-  const view = { items: [], next: null, count: 0, loading: false };
+  const view = { items: [], next: null, count: 0, loading: false, generation: 0 };
   const selected = new Set();
   let settings = { gifs: 'animated', crop: 'original' };
   let mode = 'single';
@@ -1041,9 +1042,9 @@
     const grid = $('grid');
     const term = searchTerm();
     if (!append) {
-      Object.assign(view, { items: [], next: null, count: 0, loading: true });
+      Object.assign(view, { items: [], next: null, count: 0, loading: true, generation: view.generation + 1 });
       selected.clear();
-      grid.replaceChildren(spinner());
+      grid.replaceChildren(...Array.from({ length: 6 }, () => placeholder('Loading')));
       grid.scrollTop = 0;
       updateActions();
     }
@@ -1053,7 +1054,8 @@
 
     view.loading = false;
     pager.disconnect();
-    grid.querySelector('.wide')?.remove();
+    if (append) grid.querySelector('.wide')?.remove();
+    else grid.replaceChildren();
     view.items.push(...page.items);
     view.next = page.next;
     view.count = page.count;
@@ -1071,12 +1073,14 @@
     return p;
   }
 
-  function spinner() {
-    const p = document.createElement('p');
-    p.className = 'wide';
-    p.setAttribute('aria-label', 'Loading');
-    p.append(Object.assign(document.createElement('span'), { className: 'spinner' }));
-    return p;
+  // A pulsing tile for something that is still on its way: a page that is loading or a fresh upload.
+  function placeholder(label) {
+    const div = document.createElement('div');
+    div.className = 'tile';
+    div.title = label;
+    div.setAttribute('role', 'img');
+    div.setAttribute('aria-label', label);
+    return div;
   }
 
   // The next page loads as the button scrolls into view. The button stays for keyboard users.
@@ -1117,6 +1121,8 @@
     };
 
     const img = document.createElement('img');
+    img.onload = () => btn.classList.add('loaded');
+    img.onerror = () => retryImage(img, item.thumb, 1);
     img.src = item.thumb;
     img.alt = item.name;
     img.loading = 'lazy';
@@ -1124,6 +1130,15 @@
     btn.append(img);
     if (item.kind !== 'image') btn.append(badge(item));
     return btn;
+  }
+
+  // Right after an upload the CDN can answer 404 for a moment, so a thumbnail retries a few times.
+  function retryImage(img, src, attempt) {
+    if (attempt > 5) return;
+    setTimeout(() => {
+      img.onerror = () => retryImage(img, src, attempt + 1);
+      img.src = `${src}&retry=${attempt}`;
+    }, 2000 * attempt);
   }
 
   function badge(item) {
@@ -1149,7 +1164,7 @@
   function setMode(next) {
     mode = next;
     if (mode !== 'select') selected.clear();
-    for (const btn of $('grid').querySelectorAll('.tile')) {
+    for (const btn of $('grid').querySelectorAll('button.tile')) {
       if (mode === 'select') btn.setAttribute('aria-pressed', String(selected.has(btn.dataset.id)));
       else btn.removeAttribute('aria-pressed');
     }
@@ -1217,12 +1232,43 @@
 
   async function uploadAll(files) {
     const board = currentBoard();
+    const ids = [];
     for (const [i, bytes] of files.entries()) {
       setStatus(`Uploading ${i + 1} of ${files.length} to ${board.label}`);
-      await uploadPng(bytes, board.id);
+      ids.push(await uploadPng(bytes, board.id));
     }
     toMain({ type: 'notify', text: `Saved ${files.length} to ${board.label} on Cosmos` });
-    await load();
+    updateActions();
+    awaitUploads(board.id, ids).catch(fail);
+  }
+
+  // Cosmos lists a new upload only once it has processed the file. Until then it shows as a pulsing
+  // placeholder, and the collection is checked every 2 seconds for up to a minute.
+  async function awaitUploads(boardId, ids) {
+    if (boardId !== currentId || searchTerm()) return;
+    const generation = view.generation;
+    const grid = $('grid');
+    grid.querySelector('p.wide')?.remove();
+    const waiting = new Map(ids.map((id) => [id, placeholder('Processing on Cosmos')]));
+    grid.prepend(...waiting.values());
+
+    for (let attempt = 0; attempt < 30 && waiting.size; attempt += 1) {
+      await new Promise((resolve) => setTimeout(resolve, 2000));
+      if (view.generation !== generation) return;
+      const page = await listItems(boardId, null, 40).catch(() => null);
+      if (!page || view.generation !== generation) continue;
+      for (const item of page.items) {
+        if (!waiting.has(item.id)) continue;
+        waiting.get(item.id).replaceWith(tile(item));
+        waiting.delete(item.id);
+        view.items.unshift(item);
+      }
+      view.count = page.count;
+      updateActions();
+    }
+
+    for (const slot of waiting.values()) slot.remove();
+    if (waiting.size) setStatus(`Cosmos is still processing ${plural(waiting.size, 'upload')}. Reopen the collection in a moment.`);
   }
 
   function reflectSettings() {
