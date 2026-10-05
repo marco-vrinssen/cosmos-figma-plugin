@@ -1,6 +1,6 @@
 # cosmos-figma-plugin memory
 
-Updated 2026-10-05. Public reference repo for asking Cosmos's permission to publish. The plugin is not on the Figma Community. The manifest `id` stays `cosmos-figma-plugin` until Figma generates a real one in the publish dialog. Any id change makes Figma drop the stored session, so users sign in once more.
+Updated 2026-10-05. The plugin is named Cosmos Unofficial (the user's choice, after cosmos.so unofficial). Public reference repo for asking Cosmos's permission to publish. The plugin is not on the Figma Community. The manifest `id` stays `cosmos-figma-plugin` until Figma generates a real one in the publish dialog. Any id change makes Figma drop the stored session, so users sign in once more.
 
 ## Publishing
 
