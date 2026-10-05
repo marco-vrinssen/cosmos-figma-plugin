@@ -77,6 +77,29 @@
 
   .secondary:disabled { color: var(--figma-color-text-disabled); border-color: var(--figma-color-border-disabled); background: none; }
 
+  /* A busy button keeps its size and swaps its label for Figma's UI3 spinner, a 270 degree arc that
+     turns once a second. The spinner waits 150 ms, so quick work never flashes it. */
+  button.loading, button.loading:disabled { position: relative; color: transparent; pointer-events: none; }
+
+  button.loading::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    width: 16px;
+    height: 16px;
+    margin: auto;
+    background: var(--figma-color-icon-secondary);
+    mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' fill='none'%3E%3Cpath d='M8 2.5A5.5 5.5 0 1 1 2.5 8' stroke='black' stroke-linecap='round'/%3E%3C/svg%3E") center / 16px no-repeat;
+    opacity: 0;
+    animation: spin 1s linear infinite, appear 0s linear 0.15s forwards;
+  }
+
+  .primary.loading::after { background: var(--figma-color-icon-onbrand); }
+
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  @keyframes appear { to { opacity: 1; } }
+
   .quiet { color: var(--figma-color-text-secondary); }
 
   .quiet:hover { color: var(--figma-color-text); }
@@ -1222,24 +1245,50 @@
   }
 
   async function runImport() {
-    $('import').disabled = true;
+    setLoading($('import'), true);
     const groups = await collectGroups();
     const total = groups.reduce((sum, group) => sum + group.items.length, 0);
-    if (!total) return updateActions();
+    if (!total) {
+      setLoading($('import'), false);
+      return updateActions();
+    }
     setStatus(`Importing ${plural(total, 'item')}`);
     toMain({ type: 'import-grid', groups, options: settings });
   }
 
+  function setLoading(button, on) {
+    button.classList.toggle('loading', on);
+    button.setAttribute('aria-busy', String(on));
+  }
+
+  // Set by the Cancel button on Figma's progress toast. Files already sent stay on Cosmos.
+  let uploadCancelled = false;
+
+  // Figma's own toast joins only uploads that take longer than a second, so quick ones never flash it.
   async function uploadAll(files) {
     const board = currentBoard();
     const ids = [];
-    for (const [i, bytes] of files.entries()) {
-      setStatus(`Uploading ${i + 1} of ${files.length} to ${board.label}`);
-      ids.push(await uploadPng(bytes, board.id));
+    uploadCancelled = false;
+    const toast = setTimeout(() => toMain({ type: 'upload-progress', text: `Uploading ${plural(files.length, 'layer')} to ${board.label}` }), 1000);
+    let error = null;
+    try {
+      for (const [i, bytes] of files.entries()) {
+        if (uploadCancelled) break;
+        setStatus(`Uploading ${i + 1} of ${files.length} to ${board.label}`);
+        ids.push(await uploadPng(bytes, board.id));
+      }
+    } catch (err) {
+      error = err;
+    } finally {
+      clearTimeout(toast);
     }
-    toMain({ type: 'notify', text: `Saved ${files.length} to ${board.label} on Cosmos` });
+
+    if (error) toMain({ type: 'upload-done', text: `Upload failed. ${error.message}`, error: true });
+    else if (ids.length < files.length) toMain({ type: 'upload-done', text: `Stopped after ${ids.length} of ${files.length}` });
+    else toMain({ type: 'upload-done', text: `Saved ${files.length} to ${board.label} on Cosmos` });
     updateActions();
-    awaitUploads(board.id, ids).catch(fail);
+    if (ids.length) awaitUploads(board.id, ids).catch(fail);
+    if (error) throw error;
   }
 
   // Cosmos lists a new upload only once it has processed the file. Until then it shows as a pulsing
@@ -1333,6 +1382,7 @@
   }
 
   $('import').onclick = () => {
+    if ($('import').classList.contains('loading')) return;
     const scope = importScope();
     const heavy = scope.count > 100 ? ' Large imports take a while and make the file heavier.' : '';
     $('confirm-title').textContent = `Import ${plural(scope.count, 'item')} in a grid?`;
@@ -1349,6 +1399,7 @@
   $('confirm').onclose = () => {
     if ($('confirm').returnValue !== 'import') return;
     runImport().catch((err) => {
+      setLoading($('import'), false);
       fail(err);
       updateActions();
     });
@@ -1365,7 +1416,8 @@
   };
 
   $('upload').onclick = () => {
-    $('upload').disabled = true;
+    if ($('upload').classList.contains('loading')) return;
+    setLoading($('upload'), true);
     setStatus('Exporting selection');
     toMain({ type: 'export' });
   };
@@ -1392,7 +1444,7 @@
       $('upload').textContent = msg.count > 1 ? `Upload ${msg.count} layers` : 'Upload selection';
     }
     if (msg.type === 'exported') {
-      const done = () => { $('upload').disabled = false; };
+      const done = () => setLoading($('upload'), false);
       if (msg.error) {
         setStatus(msg.error, true);
         done();
@@ -1400,8 +1452,12 @@
         uploadAll(msg.files).catch(fail).finally(done);
       }
     }
+    if (msg.type === 'cancel-upload') uploadCancelled = true;
     if (msg.type === 'progress') setStatus(msg.text);
-    if (msg.type === 'imported') updateActions();
+    if (msg.type === 'imported') {
+      setLoading($('import'), false);
+      updateActions();
+    }
   };
 </script>
 
