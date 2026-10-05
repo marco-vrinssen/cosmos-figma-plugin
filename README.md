@@ -1,4 +1,4 @@
-# cosmos.so unofficial
+# Cosmos Unofficial
 
 A Figma and FigJam plugin for [Cosmos](https://www.cosmos.so). Bring images, GIFs and videos from your Cosmos collections into Figma, one at a time, as a selection or as whole collections, and save designs back to Cosmos.
 
@@ -7,7 +7,7 @@ A Figma and FigJam plugin for [Cosmos](https://www.cosmos.so). Bring images, GIF
   <img src="docs/mockup-light.png" alt="The plugin window in Figma showing a Cosmos collection in Select mode, with three items checked, a GIF and a video, and the buttons Upload 2 layers and Import 3 in grid">
 </picture>
 
-cosmos.so unofficial is an independent plugin, not affiliated with or endorsed by Cosmos. The Cosmos name and logo belong to Cosmos and are used here only to describe what the plugin connects to. It is not on the Figma Community and will only be published there with Cosmos's permission.
+Cosmos Unofficial is an independent plugin, not affiliated with or endorsed by Cosmos. The Cosmos name and logo belong to Cosmos and are used here only to describe what the plugin connects to. It is not on the Figma Community and will only be published there with Cosmos's permission.
 
 ## What it does
 

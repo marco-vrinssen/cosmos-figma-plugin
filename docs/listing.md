@@ -10,14 +10,14 @@
 
 | Field | Value |
 | --- | --- |
-| Name | cosmos.so unofficial |
+| Name | Cosmos Unofficial |
 | Tagline | Bring your Cosmos collections into Figma and save designs back. |
 | Category | Design tools |
 
 ### Description
 
 ```text
-cosmos.so unofficial is an independent plugin, not affiliated with or endorsed by Cosmos. You need a Cosmos account.
+Cosmos Unofficial is an independent plugin, not affiliated with or endorsed by Cosmos. You need a Cosmos account.
 
 Pick one of your collections or subcollections, private ones included, or create a new one, then:
 - Browse or search its images, GIFs and videos.
