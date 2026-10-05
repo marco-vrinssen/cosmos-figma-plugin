@@ -17,7 +17,7 @@ cosmos.so unofficial is an independent plugin, not affiliated with or endorsed b
 - Import in grid puts items into sections named after the collection, one per subcollection. Items keep their original ratio or get a square crop that keeps the whole file.
 - GIFs stay animated or come in as stills. Videos arrive as video fills, or as their first frame where Figma allows no video.
 - Images arrive as the original files at full resolution.
-- Upload selection saves every selected design to the picked collection. A layer inside a design uploads the whole outermost frame, so a UI with nested frames goes up as one design. Frames upload at 2x, image layers at their image's resolution. New uploads show as placeholders until Cosmos has processed them.
+- Upload selection saves every selected design to the picked collection. A layer inside a design uploads the whole outermost frame, so a UI with nested frames goes up as one design. Frames upload at 2x, image layers at their image's resolution. While uploading, the button shows Figma's spinner, and longer uploads get Figma's own progress toast with a Cancel button. New uploads show as placeholders until Cosmos has processed them.
 - Looks and behaves like Figma's own UI3 controls, with Figma's theme colors and Inter, in light and dark, in Figma and FigJam.
 
 ## Try it

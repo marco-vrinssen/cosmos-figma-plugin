@@ -33,7 +33,26 @@ figma.ui.onmessage = async (msg) => {
   if (msg.type === 'import-grid') await importGrid(msg.groups, msg.options);
   if (msg.type === 'export') await exportSelection();
   if (msg.type === 'notify') figma.notify(msg.text, { error: Boolean(msg.error) });
+  if (msg.type === 'upload-progress') showProgress(msg.text);
+  if (msg.type === 'upload-done') {
+    hideProgress();
+    figma.notify(msg.text, { error: Boolean(msg.error) });
+  }
 };
+
+// Uploads report through Figma's own toast, whose native Cancel button stops the files not yet sent.
+let progress = null;
+
+function showProgress(text) {
+  hideProgress();
+  const action = () => figma.ui.postMessage({ type: 'cancel-upload' });
+  progress = figma.notify(text, { timeout: Infinity, button: { text: 'Cancel', action } });
+}
+
+function hideProgress() {
+  if (progress) progress.cancel();
+  progress = null;
+}
 
 // Only drops sent by the plugin UI carry dropMetadata.cosmos. Anything else keeps Figma's default drop.
 figma.on('drop', (event) => {
