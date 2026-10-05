@@ -35,6 +35,9 @@ Cosmos has no public API, and GraphQL introspection is off. When a call breaks, 
 - Playwright's headless Chrome hides all scrollbars. Check scrollbar styling with `--headed`.
 - `docs/mockup.html` renders `ui.html` in a `sandbox="allow-scripts"` srcdoc iframe, the way Figma hosts it, with the theme tokens inlined.
 - Settings sit in a native `popover`, and segmented controls are styled radio groups, so keyboard and screen readers work without extra code.
+- Figma offers no component library for plugin UIs. The UI3 kit is a Figma file, and FigUI3 (`rogie/figui3`, MIT core) is about 900 KB, keeps its Figma-style menu in a PolyForm Shield part, and makes the sliding segmented indicator an opt-in. The plugin matches UI3 by hand instead.
+- Inter, Figma's interface typeface, is embedded at the end of `ui.html` as a 48 KB Latin subset with the 400 to 600 weight axis. Many machines lack Inter, and the axis gives Figma's 450 and 550 weights.
+- The board picker is a `popover` listbox styled like Figma's dark menus, because a native `<select>` opens the operating system's menu.
 
 ## Reference
 
