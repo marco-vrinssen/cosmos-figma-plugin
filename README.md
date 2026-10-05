@@ -17,7 +17,7 @@ cosmos.so unofficial is an independent plugin, not affiliated with or endorsed b
 - GIFs stay animated or come in as stills. Videos arrive as video fills, or as their first frame where Figma allows no video.
 - Images arrive as the original files at full resolution.
 - Upload selection saves the selected layers to the picked board as 2x PNGs.
-- Follows Figma's light and dark theme, in Figma and FigJam.
+- Looks and behaves like Figma's own UI3 controls, with Figma's theme colors and Inter, in light and dark, in Figma and FigJam.
 
 ## Try it
 
@@ -51,7 +51,7 @@ The plugin uses the GraphQL API behind cosmos.so, the same one the web app and t
 - The password goes only to Cosmos's sign-in endpoint over HTTPS and is never stored.
 - Cosmos's tokens stay in Figma's plugin storage on your device. Sign out deletes them and ends the session.
 - Every request carries `x-client-name: figma-plugin-unofficial`, so Cosmos can tell this traffic apart.
-- Network access is limited to `api.www.cosmos.so`, `cdn.cosmos.so` and `s3.amazonaws.com`.
+- Network access is limited to `api.www.cosmos.so`, `cdn.cosmos.so` and `s3.amazonaws.com`. Inter is embedded, so no fonts load from elsewhere.
 
 ## Limits
 
