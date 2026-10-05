@@ -66,7 +66,7 @@ const authError = { errors: [{ message: 'unauthenticated', extensions: { code: '
   const png = new Uint8Array(24);
   new DataView(png.buffer).setUint32(16, 640);
   new DataView(png.buffer).setUint32(20, 480);
-  await api.uploadPng(png, '42');
+  assert.equal(await api.uploadPng(png, '42'), '1');
 
   assert.equal(calls[1].url, 'https://s3.amazonaws.com/bucket-x');
   const form = calls[1].body;
