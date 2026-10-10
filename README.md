@@ -7,7 +7,7 @@ A Figma and FigJam plugin for [Cosmos](https://www.cosmos.so). Bring images, GIF
   <img src="docs/mockup-light.png" alt="The plugin window in Figma showing a Cosmos collection in Select mode, with three items checked, a GIF and a video, and the buttons Upload 2 layers and Import 3 in grid">
 </picture>
 
-Cosmos Unofficial is an independent plugin, not affiliated with or endorsed by Cosmos. The Cosmos name and logo belong to Cosmos and are used here only to describe what the plugin connects to. It is not on the Figma Community and will only be published there with Cosmos's permission.
+Cosmos Unofficial is an independent plugin, not affiliated with or endorsed by Cosmos. The Cosmos name and logo belong to Cosmos and are used here only to describe what the plugin connects to. Cosmos has allowed its publication on the Figma Community.
 
 ## What it does
 
@@ -50,20 +50,23 @@ The plugin uses the GraphQL API behind cosmos.so, the same one the web app and t
 
 ## Privacy
 
+The full policy is in [PRIVACY.md](PRIVACY.md).
+
 - The password goes only to Cosmos's sign-in endpoint over HTTPS and is never stored.
 - Cosmos's tokens stay in Figma's plugin storage on your device. Sign out deletes them and ends the session.
-- Every request carries `x-client-name: figma-plugin-unofficial`, so Cosmos can tell this traffic apart.
+- Every Cosmos API request carries `x-client-name: figma-plugin-unofficial`, so Cosmos can tell this traffic apart.
 - Network access is limited to `api.www.cosmos.so`, `cdn.cosmos.so` and `s3.amazonaws.com`. Inter is embedded, so no fonts load from elsewhere.
 
 ## Limits
 
+- One grid import takes at most 500 items, because thousands of full-size files can run Figma out of memory.
 - Search returns up to 500 results, ranked by relevance.
 - Images above Figma's 4096 px limit, and formats Figma cannot read, come in as resized PNGs.
 - Video fills need a paid Figma Design file. In FigJam and on free plans, videos come in as their first frame.
 
 ## For the Cosmos team
 
-I built this for my own work and would like to share it with other Cosmos users on the Figma Community, with your permission. I am happy to move it to an official API or OAuth, rename it, change the branding, or hand it over to you. Open an issue here or reach me on [GitHub](https://github.com/marco-vrinssen).
+I built this for my own work and share it with other Cosmos users on the Figma Community with your permission. I am happy to move it to an official API or OAuth, rename it, change the branding, or hand it over to you. Open an issue here or reach me on [GitHub](https://github.com/marco-vrinssen).
 
 ## License
 
