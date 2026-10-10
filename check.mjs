@@ -6,16 +6,18 @@ const html = readFileSync(new URL('ui.html', import.meta.url), 'utf8');
 const src = html.match(/<script id="cosmos">([\s\S]*?)<\/script>/)[1];
 const mainSrc = readFileSync(new URL('code.js', import.meta.url), 'utf8');
 
-function load(responses) {
+// A status of 0 stands for a request that never got an answer, like a dropped connection or a CORS block.
+function load(responses, navigator = { onLine: true }) {
   const calls = [];
   const fetch = async (url, init) => {
     calls.push({ url, init, body: typeof init.body === 'string' ? JSON.parse(init.body) : init.body });
     const [status, json] = responses.shift();
+    if (status === 0) throw new TypeError('Failed to fetch');
     return { status, ok: status < 400, json: async () => json };
   };
   const parent = { postMessage: () => {} };
-  const api = new Function('fetch', 'parent', `${src}
-    return { gql, uploadPng, searchItems, createBoard, canvasWidth, getSession: () => session, setSession: (s) => { session = s; } };`)(fetch, parent);
+  const api = new Function('fetch', 'parent', 'navigator', `${src}
+    return { gql, uploadPng, searchItems, createBoard, canvasWidth, getSession: () => session, setSession: (s) => { session = s; } };`)(fetch, parent, navigator);
   return { api, calls };
 }
 
@@ -43,29 +45,49 @@ const authError = { errors: [{ message: 'unauthenticated', extensions: { code: '
   assert.equal(api.getSession(), null);
 }
 
-// Upload posts the policy fields to S3, then creates the element from the key with the PNG size.
+// A refresh that never reaches Cosmos keeps the session for the next try.
 {
-  const policyString = JSON.stringify({
-    conditions: [
-      { bucket: 'bucket-x' },
-      ['eq', '$key', 'images/abc'],
-      { acl: 'private' },
-      ['starts-with', '$Content-Type', 'image/'],
-      { 'x-amz-credential': 'cred' },
-      { 'x-amz-algorithm': 'AWS4-HMAC-SHA256' },
-      { 'x-amz-date': '20261005T000000Z' },
-    ],
-  });
+  const { api } = load([[200, authError], [0]]);
+  api.setSession({ accessToken: 'a1', refreshToken: 'r1', userId: 7 });
+  await assert.rejects(api.gql('query Me { me { id } }'), /not reachable/);
+  assert.deepEqual(api.getSession(), { accessToken: 'a1', refreshToken: 'r1', userId: 7 });
+}
+
+// Two calls that hit an expired token together share one refresh.
+{
   const { api, calls } = load([
-    [200, { data: { s3PostPolicyForImageUpload: { signature: 'sig', policyString, policyBase64String: 'b64' } } }],
-    [204, null],
-    [200, { data: { element: { created: { id: 1 } } } }],
+    [200, authError],
+    [200, authError],
+    [200, { data: { auth: { refreshAccessToken: { accessToken: 'a2', refreshToken: 'r2' } } } }],
+    [200, { data: { me: { id: 7 } } }],
+    [200, { data: { me: { id: 7 } } }],
   ]);
   api.setSession({ accessToken: 'a1', refreshToken: 'r1', userId: 7 });
+  await Promise.all([api.gql('query Me { me { id } }'), api.gql('query Me { me { id } }')]);
+  assert.equal(calls.filter((call) => call.body.query.includes('Refresh')).length, 1);
+  assert.equal(api.getSession().accessToken, 'a2');
+}
 
-  const png = new Uint8Array(24);
-  new DataView(png.buffer).setUint32(16, 640);
-  new DataView(png.buffer).setUint32(20, 480);
+// Upload posts the policy fields to S3, read by name in any order, then creates the element from the key with the PNG size.
+const policyString = JSON.stringify({
+  conditions: [
+    { 'x-amz-date': '20261005T000000Z' },
+    ['starts-with', '$Content-Type', 'image/'],
+    { bucket: 'bucket-x' },
+    ['content-length-range', 0, 10485760],
+    { 'x-amz-credential': 'cred' },
+    ['eq', '$key', 'images/abc'],
+    { 'x-amz-algorithm': 'AWS4-HMAC-SHA256' },
+  ],
+});
+const policyAnswer = [200, { data: { s3PostPolicyForImageUpload: { signature: 'sig', policyString, policyBase64String: 'b64' } } }];
+const createdAnswer = [200, { data: { element: { created: { id: 1 } } } }];
+const png = new Uint8Array(24);
+new DataView(png.buffer).setUint32(16, 640);
+new DataView(png.buffer).setUint32(20, 480);
+{
+  const { api, calls } = load([policyAnswer, [204, null], createdAnswer]);
+  api.setSession({ accessToken: 'a1', refreshToken: 'r1', userId: 7 });
   assert.equal(await api.uploadPng(png, '42'), '1');
 
   assert.equal(calls[1].url, 'https://s3.amazonaws.com/bucket-x');
@@ -76,6 +98,18 @@ const authError = { errors: [{ message: 'unauthenticated', extensions: { code: '
   assert.equal(form.get('Policy'), 'b64');
   assert.equal(form.get('X-Amz-Signature'), 'sig');
   assert.deepEqual(calls[2].body.variables.input, { userId: 7, mediaKey: 'images/abc', width: 640, height: 480, clusterId: '42' });
+}
+
+// An unreadable S3 answer counts as sent while online. Offline, nothing goes on to Cosmos.
+{
+  const { api, calls } = load([policyAnswer, [0], createdAnswer]);
+  api.setSession({ accessToken: 'a1', refreshToken: 'r1', userId: 7 });
+  assert.equal(await api.uploadPng(png, '42'), '1');
+  assert.equal(calls.length, 3);
+
+  const offline = load([policyAnswer, [0]], { onLine: false });
+  offline.api.setSession({ accessToken: 'a1', refreshToken: 'r1', userId: 7 });
+  await assert.rejects(offline.api.uploadPng(png, '42'), /No connection/);
 }
 
 // Search stays inside the board. Images, GIFs and videos each get a still for the grid and a file to place.
@@ -125,18 +159,19 @@ const authError = { errors: [{ message: 'unauthenticated', extensions: { code: '
 }
 
 // code.js runs with a stub figma and fetch, and returns its placement functions.
-function loadMain({ createImageAsync, createVideoAsync, getImageByHash, fetch } = {}) {
+function loadMain({ createImageAsync, createVideoAsync, getImageByHash, fetch, editorType = 'figma', selection = [], posted = [] } = {}) {
   const figma = {
+    editorType,
     showUI() {},
     on() {},
-    ui: { postMessage() {} },
+    ui: { postMessage: (msg) => posted.push(msg) },
     clientStorage: { getAsync: async () => null },
-    currentPage: { selection: [] },
+    currentPage: { selection },
     createImageAsync,
     createVideoAsync,
     getImageByHash,
   };
-  const exported = 'masonry, arrange, loadImage, fillFor, uploadRoots, exportScale';
+  const exported = 'masonry, arrange, loadImage, fillFor, uploadRoots, exportScale, exportLayer';
   return new Function('figma', '__html__', 'fetch', `${mainSrc}\nreturn { ${exported} };`)(figma, '', fetch);
 }
 
@@ -176,6 +211,21 @@ const image = (url) => ({ hash: url, getSizeAsync: async () => ({ width: 10, hei
   assert.equal(still.stillFrame, 'Video needs a paid plan');
 }
 
+// After one refusal, and always in FigJam, videos skip the download and come in as their first frame.
+{
+  let downloads = 0;
+  const fetch = async () => ({ ok: true, arrayBuffer: async () => { downloads += 1; return new ArrayBuffer(4); } });
+  const video = { kind: 'video', video: 'v.mp4', original: 'thumbnail', src: 'png', width: 1920, height: 1080 };
+  const refusing = loadMain({ createImageAsync: async (url) => image(url), createVideoAsync: async () => { throw new Error('No video'); }, fetch });
+  await refusing.fillFor(video, {});
+  assert.equal((await refusing.fillFor(video, {})).stillFrame, 'No video');
+  assert.equal(downloads, 1);
+
+  const figjam = loadMain({ createImageAsync: async (url) => image(url), createVideoAsync: async () => ({ hash: 'v' }), fetch, editorType: 'figjam' });
+  assert.equal((await figjam.fillFor(video, {})).paint.type, 'IMAGE');
+  assert.equal(downloads, 1);
+}
+
 // Videos become video fills at the size Cosmos reports.
 {
   const { fillFor } = loadMain({
@@ -201,6 +251,8 @@ const image = (url) => ({ hash: url, getSizeAsync: async () => ({ width: 10, hei
   const square = masonry(items, true);
   assert.ok(square.cells.every((cell) => cell.width === 400 && cell.height === 400));
   assert.deepEqual(square.cells[3], { x: 0, y: 416, width: 400, height: 400 });
+
+  assert.equal(masonry([size(4000, 2)], false).cells[0].height, 1);
 }
 
 // A board and its subcollections sit in rows, as many per row as the square root of their count.
@@ -229,6 +281,25 @@ const image = (url) => ({ hash: url, getSizeAsync: async () => ({ width: 10, hei
 
   const roots = uploadRoots([deep, nested, text, shelf, loose]);
   assert.deepEqual(roots.map((root) => root.id), ['design', 'loose', 'a', 'b']);
+}
+
+// Exports go one design per request, from the selection as it was when the upload started.
+{
+  const page = { type: 'PAGE' };
+  const frame = (id) => ({ id, type: 'FRAME', parent: page, children: [], fills: [], exportAsync: async () => id });
+  const selection = [frame('a'), frame('b')];
+  const posted = [];
+  const { exportLayer } = loadMain({ selection, posted });
+
+  await exportLayer(0);
+  selection.length = 0;
+  await exportLayer(1);
+  await exportLayer(2);
+  assert.deepEqual(posted.filter((msg) => msg.type === 'exported'), [
+    { type: 'exported', file: 'a', total: 2 },
+    { type: 'exported', file: 'b', total: 2 },
+    { type: 'exported', error: 'Could not export: Nothing is selected.' },
+  ]);
 }
 
 // Image layers export at their image's resolution, capped at 4x. Everything else exports at 2x.
