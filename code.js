@@ -30,8 +30,15 @@ figma.ui.onmessage = async (msg) => {
   if (msg.type === 'save-session') await save('session', msg.session);
   if (msg.type === 'save-settings') await save('settings', msg.settings);
   if (msg.type === 'place') await place(msg.item, msg.options, figma.currentPage, figma.viewport.center.x, figma.viewport.center.y);
-  if (msg.type === 'import-grid') await importGrid(msg.groups, msg.options);
-  if (msg.type === 'export') await exportSelection();
+  if (msg.type === 'import-grid') {
+    try {
+      await importGrid(msg.groups, msg.options);
+    } catch (err) {
+      figma.notify(`Could not import: ${err.message}`, { error: true });
+    }
+    figma.ui.postMessage({ type: 'imported' });
+  }
+  if (msg.type === 'export') await exportLayer(msg.index);
   if (msg.type === 'notify') figma.notify(msg.text, { error: Boolean(msg.error) });
   if (msg.type === 'upload-progress') showProgress(msg.text);
   if (msg.type === 'upload-done') {
@@ -133,11 +140,18 @@ async function imageFill(loading) {
   return { paint: { type: 'IMAGE', imageHash: image.hash, scaleMode: 'FILL' }, width: size.width, height: size.height };
 }
 
+// The first refusal skips the download for later videos. A single broken file also counts, until the plugin reopens.
+let videoRefused = figma.editorType === 'figjam' ? 'FigJam has no video fills.' : null;
+
 // Free plans and FigJam reject video, which sends the item down the first-frame path.
 async function videoFill(item) {
+  if (videoRefused) throw new Error(videoRefused);
   const res = await fetch(item.video);
   if (!res.ok) throw new Error(`Video download failed (${res.status})`);
-  const video = await figma.createVideoAsync(new Uint8Array(await res.arrayBuffer()));
+  const video = await figma.createVideoAsync(new Uint8Array(await res.arrayBuffer())).catch((err) => {
+    videoRefused = err.message || 'Video is not available here.';
+    throw err;
+  });
   return { paint: { type: 'VIDEO', videoHash: video.hash, scaleMode: 'FILL' }, width: item.width, height: item.height };
 }
 
@@ -199,7 +213,8 @@ async function importGrid(groups, options) {
       rect.fills = [fill.paint];
       if (fill.stillFrame) stills += 1;
     } catch (err) {
-      rect.remove();
+      // An undo or a deleted placeholder during the import has already removed the layer.
+      if (!rect.removed) rect.remove();
       failed += 1;
     }
     done += 1;
@@ -212,7 +227,6 @@ async function importGrid(groups, options) {
   if (failed) notes.push(`${failed} failed to load`);
   if (stills) notes.push(stills === 1 ? '1 video as its first frame' : `${stills} videos as first frames`);
   figma.notify(notes.join(', '));
-  figma.ui.postMessage({ type: 'imported' });
 }
 
 // The square root of the item count as column count keeps a section roughly square.
@@ -221,7 +235,8 @@ function masonry(items, square) {
   const heights = new Array(columns).fill(0);
   const cells = items.map((item) => {
     const column = heights.indexOf(Math.min(...heights));
-    const height = !square && item.width && item.height ? Math.round((COLUMN * item.height) / item.width) : COLUMN;
+    // At least 1 px, because Figma rejects a zero height from a very wide banner.
+    const height = !square && item.width && item.height ? Math.max(1, Math.round((COLUMN * item.height) / item.width)) : COLUMN;
     const cell = { x: column * (COLUMN + GAP), y: heights[column], width: COLUMN, height };
     heights[column] += height + GAP;
     return cell;
@@ -263,15 +278,19 @@ async function eachLimit(items, limit, fn) {
   await Promise.all(Array.from({ length: Math.min(limit, items.length) }, worker));
 }
 
-async function exportSelection() {
+// The designs of the running upload, fixed at its start so a selection change cannot shift them.
+let uploads = [];
+
+// One design per request, so only one PNG at a time sits in memory and Cancel also stops exports.
+async function exportLayer(index) {
+  if (index === 0) uploads = uploadRoots(figma.currentPage.selection);
   try {
-    const files = [];
-    for (const node of uploadRoots(figma.currentPage.selection)) {
-      const scale = await exportScale(node);
-      files.push(await node.exportAsync({ format: 'PNG', constraint: { type: 'SCALE', value: scale } }));
-    }
-    figma.ui.postMessage({ type: 'exported', files });
+    const node = uploads[index];
+    if (!node) throw new Error('Nothing is selected.');
+    const scale = await exportScale(node);
+    const file = await node.exportAsync({ format: 'PNG', constraint: { type: 'SCALE', value: scale } });
+    figma.ui.postMessage({ type: 'exported', file, total: uploads.length });
   } catch (err) {
-    figma.ui.postMessage({ type: 'exported', files: [], error: `Could not export: ${err.message}` });
+    figma.ui.postMessage({ type: 'exported', error: `Could not export: ${err.message}` });
   }
 }

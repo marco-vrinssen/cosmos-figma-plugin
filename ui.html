@@ -674,6 +674,9 @@
   // { accessToken, refreshToken, userId }, persisted by code.js in figma.clientStorage.
   let session = null;
 
+  // Calls that hit an expired token together share one refresh, because Cosmos may accept a refresh token only once.
+  let refreshing = null;
+
   function saveSession(next) {
     session = next;
     parent.postMessage({ pluginMessage: { type: 'save-session', session } }, '*');
@@ -684,28 +687,34 @@
     const headers = { 'content-type': 'application/json', 'x-client-name': 'figma-plugin-unofficial' };
     if (session) headers.authorization = `Bearer ${session.accessToken}`;
 
-    const res = await fetch(API, { method: 'POST', headers, body: JSON.stringify({ query, variables }) });
+    const res = await fetch(API, { method: 'POST', headers, body: JSON.stringify({ query, variables }) }).catch(() => {
+      throw new Error('Cosmos is not reachable. Check your connection.');
+    });
     const body = await res.json().catch(() => ({}));
     const expired = res.status === 401 || body.errors?.some((e) => e.extensions?.code === 'AUTHENTICATION');
 
     // Access tokens last about five days. Refresh once, then sign out.
     if (expired && session && !isRetry) {
-      await refreshTokens();
+      refreshing ||= refreshTokens().finally(() => { refreshing = null; });
+      await refreshing;
       return gql(query, variables, true);
     }
-    if (body.errors?.length) throw new Error(body.errors[0].message);
-    if (!res.ok) throw new Error(`Cosmos answered ${res.status}`);
+    const error = body.errors?.length ? body.errors[0].message : !res.ok && `Cosmos answered ${res.status}`;
+    if (error) throw Object.assign(new Error(error), { expired });
     return body.data;
   }
 
+  // Only a rejected refresh token ends the session. A network failure keeps it for the next try.
   async function refreshTokens() {
+    let data;
     try {
-      const data = await gql(REFRESH, { input: { refreshToken: session.refreshToken } }, true);
-      saveSession({ ...session, ...data.auth.refreshAccessToken });
-    } catch {
+      data = await gql(REFRESH, { input: { refreshToken: session.refreshToken } }, true);
+    } catch (err) {
+      if (!err.expired) throw err;
       saveSession(null);
       throw new Error('Session expired. Sign in again.');
     }
+    saveSession({ ...session, ...data.auth.refreshAccessToken });
   }
 
   async function signIn(identifier, password) {
@@ -801,16 +810,21 @@
   // Mirrors the web app: post the PNG to S3 with Cosmos's post policy, then create the element from its key.
   async function uploadPng(bytes, clusterId) {
     const { s3PostPolicyForImageUpload: policy } = await gql(POLICY);
-    const conditions = JSON.parse(policy.policyString).conditions;
-    const key = conditions[1][2];
-    const [typeRule, , typePrefix] = conditions[3];
+
+    // Each condition is { field: value } or [rule, '$field', value]. Reading them by name survives a reorder.
+    const rules = {};
+    for (const c of JSON.parse(policy.policyString).conditions) {
+      if (Array.isArray(c)) rules[String(c[1]).slice(1).toLowerCase()] = { rule: c[0], value: c[2] };
+      else for (const [field, value] of Object.entries(c)) rules[field.toLowerCase()] = { rule: 'eq', value };
+    }
+    const type = rules['content-type'];
 
     const fields = {
-      key,
-      'X-Amz-Credential': conditions[4]['x-amz-credential'],
-      'X-Amz-Algorithm': conditions[5]['x-amz-algorithm'],
-      'X-Amz-Date': conditions[6]['x-amz-date'],
-      'Content-Type': typeRule === 'starts-with' && 'image/png'.startsWith(typePrefix) ? 'image/png' : typePrefix,
+      key: rules.key.value,
+      'X-Amz-Credential': rules['x-amz-credential'].value,
+      'X-Amz-Algorithm': rules['x-amz-algorithm'].value,
+      'X-Amz-Date': rules['x-amz-date'].value,
+      'Content-Type': type.rule === 'starts-with' && 'image/png'.startsWith(type.value) ? 'image/png' : type.value,
       Policy: policy.policyBase64String,
       'X-Amz-Signature': policy.signature,
     };
@@ -818,15 +832,17 @@
     for (const [name, value] of Object.entries(fields)) form.append(name, value);
     form.append('file', new Blob([bytes], { type: 'image/png' }));
 
-    // ponytail: S3 may withhold CORS headers from the null origin. The multipart POST is a simple request and
-    // still lands, so an unreadable response counts as sent and createFromImage validates the key. Read the
-    // status strictly once a real upload confirms S3 answers this origin.
-    const res = await fetch(`https://s3.amazonaws.com/${conditions[0].bucket}`, { method: 'POST', body: form }).catch(() => null);
+    // S3 may withhold CORS headers from the null origin, so an unreadable answer counts as sent and createFromImage checks the key.
+    // Limit: navigator.onLine catches a dropped connection but not a network without internet, where createFromImage fails instead.
+    const res = await fetch(`https://s3.amazonaws.com/${rules.bucket.value}`, { method: 'POST', body: form }).catch(() => {
+      if (!navigator.onLine) throw new Error('No connection. Nothing was uploaded.');
+      return null;
+    });
     if (res && res.status !== 204) throw new Error(`Upload to Cosmos storage failed (${res.status})`);
 
     // A PNG stores width and height as big-endian uint32 at bytes 16 and 20.
     const png = new DataView(bytes.buffer, bytes.byteOffset);
-    const input = { userId: session.userId, mediaKey: key, width: png.getUint32(16), height: png.getUint32(20), clusterId };
+    const input = { userId: session.userId, mediaKey: fields.key, width: png.getUint32(16), height: png.getUint32(20), clusterId };
     const data = await gql(CREATE_IMAGE, { input });
     return String(data.element.created.id);
   }
@@ -853,9 +869,15 @@
   // What the grid shows: one board or subcollection, narrowed by the search term when there is one.
   const view = { items: [], next: null, count: 0, loading: false, generation: 0 };
   const selected = new Set();
-  let settings = { gifs: 'animated', crop: 'original' };
   let mode = 'single';
   let currentId = null;
+  let selectionCount = 0;
+
+  // Arrives with init from code.js, which owns the defaults.
+  let settings = null;
+
+  // Grid imports stop here, because thousands of full-size files can run Figma out of memory.
+  const IMPORT_LIMIT = 500;
 
   // Every load bumps this, so a slow answer for an older board or term is dropped.
   let loadId = 0;
@@ -917,7 +939,11 @@
   async function showBrowser() {
     $('login').hidden = true;
     $('browser').hidden = false;
-    tree = (await listBoards()).map((board) => {
+    const list = await listBoards().catch((err) => {
+      offerRetry(showBrowser);
+      throw err;
+    });
+    tree = list.map((board) => {
       const collection = { id: String(board.id), name: board.name, label: board.name, isPrivate: board.isPrivate, subs: [] };
       collection.subs = board.subClusters.items.map((sub) => subcollection(collection, sub));
       return collection;
@@ -927,6 +953,16 @@
     $('board-label').textContent = 'No collections';
     $('grid').replaceChildren(note('Create your first collection from the menu above.'));
     setStatus('');
+    updateUpload();
+  }
+
+  // A failed load puts Retry in place of the grid, so a dropped connection needs no restart.
+  function offerRetry(run) {
+    const retry = document.createElement('button');
+    retry.className = 'quiet wide';
+    retry.textContent = 'Retry';
+    retry.onclick = () => run().catch(fail);
+    $('grid').replaceChildren(retry);
   }
 
   function subcollection(parentBoard, sub) {
@@ -994,6 +1030,7 @@
     currentId = id;
     $('board-label').textContent = boards.get(id).label;
     if ($('board-menu').matches(':popover-open')) $('board-menu').hidePopover();
+    updateUpload();
     load().catch(fail);
   }
 
@@ -1025,12 +1062,15 @@
 
   // Cosmos caps names at 24 characters, which the field enforces, and reserves a leading underscore.
   async function submitCreate() {
+    // A second Enter while the first request runs would create a second collection.
+    const button = $('create-submit');
+    if (button.disabled) return;
+
     const name = $('create-name').value.trim();
     const error = !name ? 'Enter a name.' : name.startsWith('_') ? 'Names cannot start with an underscore.' : '';
     $('create-error').textContent = error;
     if (error) return;
 
-    const button = $('create-submit');
     const isPrivate = $('create-private').checked;
     button.disabled = true;
     try {
@@ -1061,6 +1101,7 @@
   }
 
   async function load(append) {
+    if (!currentBoard()) return;
     const id = ++loadId;
     const grid = $('grid');
     const term = searchTerm();
@@ -1072,7 +1113,10 @@
       updateActions();
     }
 
-    const page = await fetchPage(currentBoard().id, term, view.next);
+    const page = await fetchPage(currentBoard().id, term, view.next).catch((err) => {
+      if (!append && id === loadId) offerRetry(load);
+      throw err;
+    });
     if (id !== loadId) return;
 
     view.loading = false;
@@ -1216,8 +1260,8 @@
     setStatus(mode === 'all' ? scope.text : HINTS[mode]);
   }
 
-  // Loads every page of a source in large pages, so big boards need only a few requests.
-  async function collectAll(fetchPage, label) {
+  // Loads a source in large pages, so big boards need only a few requests, and stops once the import is full.
+  async function collectAll(fetchPage, label, room) {
     const items = [];
     let cursor = null;
     do {
@@ -1225,20 +1269,23 @@
       const page = await fetchPage(cursor);
       items.push(...page.items);
       cursor = page.next;
-    } while (cursor);
-    return items;
+    } while (cursor && items.length < room);
+    return items.slice(0, room);
   }
 
   // Subcollections become their own sections, because a board's list leaves their items out.
   async function collectGroups() {
     const board = currentBoard();
     const term = searchTerm();
-    if (mode === 'select') return [{ name: board.label, items: view.items.filter((item) => selected.has(item.id)) }];
-    if (term) return [{ name: `“${term}” in ${board.label}`, items: await collectAll((cursor) => searchItems(board.id, term, cursor), 'results') }];
+    if (mode === 'select') return [{ name: board.label, items: view.items.filter((item) => selected.has(item.id)).slice(0, IMPORT_LIMIT) }];
+    if (term) return [{ name: `“${term}” in ${board.label}`, items: await collectAll((cursor) => searchItems(board.id, term, cursor), 'results', IMPORT_LIMIT) }];
 
     const groups = [];
+    let room = IMPORT_LIMIT;
     for (const source of [board, ...board.subs]) {
-      const items = await collectAll((cursor) => listItems(source.id, cursor, 500), source.label);
+      if (!room) break;
+      const items = await collectAll((cursor) => listItems(source.id, cursor, 500), source.label, room);
+      room -= items.length;
       if (items.length) groups.push({ name: source.label, items });
     }
     return groups;
@@ -1256,6 +1303,12 @@
     toMain({ type: 'import-grid', groups, options: settings });
   }
 
+  // Upload needs a selection and a collection to put it in.
+  function updateUpload() {
+    $('upload').disabled = !selectionCount || !currentBoard();
+    $('upload').textContent = selectionCount > 1 ? `Upload ${selectionCount} layers` : 'Upload selection';
+  }
+
   function setLoading(button, on) {
     button.classList.toggle('loading', on);
     button.setAttribute('aria-busy', String(on));
@@ -1264,18 +1317,31 @@
   // Set by the Cancel button on Figma's progress toast. Files already sent stay on Cosmos.
   let uploadCancelled = false;
 
+  // Resolves the export that code.js is working on.
+  let exportReply = null;
+
+  function exportLayer(index) {
+    return new Promise((resolve) => {
+      exportReply = resolve;
+      toMain({ type: 'export', index });
+    });
+  }
+
   // Figma's own toast joins only uploads that take longer than a second, so quick ones never flash it.
-  async function uploadAll(files) {
+  async function uploadAll() {
     const board = currentBoard();
     const ids = [];
+    let total = selectionCount;
     uploadCancelled = false;
-    const toast = setTimeout(() => toMain({ type: 'upload-progress', text: `Uploading ${plural(files.length, 'layer')} to ${board.label}` }), 1000);
+    const toast = setTimeout(() => toMain({ type: 'upload-progress', text: `Uploading ${plural(total, 'layer')} to ${board.label}` }), 1000);
     let error = null;
     try {
-      for (const [i, bytes] of files.entries()) {
-        if (uploadCancelled) break;
-        setStatus(`Uploading ${i + 1} of ${files.length} to ${board.label}`);
-        ids.push(await uploadPng(bytes, board.id));
+      for (let i = 0; i < total && !uploadCancelled; i += 1) {
+        setStatus(`Uploading ${i + 1} of ${total} to ${board.label}`);
+        const exported = await exportLayer(i);
+        if (exported.error) throw new Error(exported.error);
+        total = exported.total;
+        ids.push(await uploadPng(exported.file, board.id));
       }
     } catch (err) {
       error = err;
@@ -1284,8 +1350,8 @@
     }
 
     if (error) toMain({ type: 'upload-done', text: `Upload failed. ${error.message}`, error: true });
-    else if (ids.length < files.length) toMain({ type: 'upload-done', text: `Stopped after ${ids.length} of ${files.length}` });
-    else toMain({ type: 'upload-done', text: `Saved ${files.length} to ${board.label} on Cosmos` });
+    else if (ids.length < total) toMain({ type: 'upload-done', text: `Stopped after ${ids.length} of ${total}` });
+    else toMain({ type: 'upload-done', text: `Saved ${total} to ${board.label} on Cosmos` });
     updateActions();
     if (ids.length) awaitUploads(board.id, ids).catch(fail);
     if (error) throw error;
@@ -1304,7 +1370,8 @@
     for (let attempt = 0; attempt < 30 && waiting.size; attempt += 1) {
       await new Promise((resolve) => setTimeout(resolve, 2000));
       if (view.generation !== generation) return;
-      const page = await listItems(boardId, null, 40).catch(() => null);
+      // The first page has to reach back past every upload of this batch.
+      const page = await listItems(boardId, null, Math.max(40, ids.length)).catch(() => null);
       if (!page || view.generation !== generation) continue;
       for (const item of page.items) {
         if (!waiting.has(item.id)) continue;
@@ -1384,9 +1451,10 @@
   $('import').onclick = () => {
     if ($('import').classList.contains('loading')) return;
     const scope = importScope();
+    const capped = scope.count > IMPORT_LIMIT ? ` One import takes the first ${fmt(IMPORT_LIMIT)}, so Figma stays responsive.` : '';
     const heavy = scope.count > 100 ? ' Large imports take a while and make the file heavier.' : '';
-    $('confirm-title').textContent = `Import ${plural(scope.count, 'item')} in a grid?`;
-    $('confirm-text').textContent = scope.text + heavy;
+    $('confirm-title').textContent = `Import ${plural(Math.min(scope.count, IMPORT_LIMIT), 'item')} in a grid?`;
+    $('confirm-text').textContent = scope.text + capped + heavy;
 
     // Escape keeps the previous returnValue, so reset it or a cancel could repeat the last confirm.
     $('confirm').returnValue = '';
@@ -1418,8 +1486,7 @@
   $('upload').onclick = () => {
     if ($('upload').classList.contains('loading')) return;
     setLoading($('upload'), true);
-    setStatus('Exporting selection');
-    toMain({ type: 'export' });
+    uploadAll().catch(fail).finally(() => setLoading($('upload'), false));
   };
 
   $('signout').onclick = async () => {
@@ -1440,18 +1507,10 @@
       else showLogin();
     }
     if (msg.type === 'selection') {
-      $('upload').disabled = msg.count === 0;
-      $('upload').textContent = msg.count > 1 ? `Upload ${msg.count} layers` : 'Upload selection';
+      selectionCount = msg.count;
+      updateUpload();
     }
-    if (msg.type === 'exported') {
-      const done = () => setLoading($('upload'), false);
-      if (msg.error) {
-        setStatus(msg.error, true);
-        done();
-      } else {
-        uploadAll(msg.files).catch(fail).finally(done);
-      }
-    }
+    if (msg.type === 'exported') exportReply(msg);
     if (msg.type === 'cancel-upload') uploadCancelled = true;
     if (msg.type === 'progress') setStatus(msg.text);
     if (msg.type === 'imported') {
