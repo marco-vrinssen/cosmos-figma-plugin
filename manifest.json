@@ -11,6 +11,7 @@
       "https://api.www.cosmos.so",
       "https://cdn.cosmos.so",
       "https://s3.amazonaws.com"
-    ]
+    ],
+    "reasoning": "Signs in to your Cosmos account, loads your collections and their images from Cosmos's CDN, and uploads selected designs to Cosmos's storage. No data goes anywhere else."
   }
 }
