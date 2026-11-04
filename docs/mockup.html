@@ -1,6 +1,7 @@
 <!doctype html>
-<!-- Renders the README mockups from the real ui.html with placeholder data. Serve the repo root with
-     `python3 -m http.server`, open /docs/mockup.html#light or #dark, and capture 1920 x 1080. -->
+<!-- Renders the cover, README mockups and carousel slides from the real ui.html with placeholder data.
+     Serve the repo root with `python3 -m http.server`, open /docs/mockup.html#light or #dark, add
+     ?scene=collections, search or import for a slide, and capture 1920 x 1080. -->
 <meta charset="utf-8">
 <title>Cosmos Unofficial mockup</title>
 <style>
@@ -84,8 +85,8 @@
 
 <div class="copy">
   <svg aria-hidden="true"><use href="#logo"/></svg>
-  <h1>Cosmos Unofficial</h1>
-  <p>Bring images, GIFs and videos from your Cosmos collections into Figma, and save designs back to Cosmos.</p>
+  <h1 id="title">Cosmos Unofficial</h1>
+  <p id="text">Bring images, GIFs and videos from your Cosmos collections into Figma, and save designs back to Cosmos.</p>
 </div>
 
 <div class="stage">
@@ -98,6 +99,41 @@
 <script>
   const theme = location.hash === '#dark' ? 'dark' : 'light';
   document.documentElement.classList.toggle('dark', theme === 'dark');
+
+  // Each scene sets the copy and drives the plugin into one state. The cover is the default.
+  const scenes = {
+    cover: {
+      run: `onmessage({ data: { pluginMessage: { type: 'selection', count: 2 } } });
+        document.querySelector('input[name=mode][value=select]').click();
+        [...document.querySelectorAll('.tile')].slice(0, 3).forEach((tile) => tile.click());`,
+    },
+    collections: {
+      title: 'All your collections',
+      text: 'Pick any collection or subcollection, private ones included, and click an item to place it on the canvas.',
+      run: `document.getElementById('board').click();`,
+    },
+    search: {
+      title: 'Search inside a collection',
+      text: 'Find the right reference in seconds, then place it on the canvas at its full resolution.',
+      run: `const field = document.getElementById('search');
+        field.value = 'concrete';
+        field.dispatchEvent(new Event('input'));`,
+    },
+    import: {
+      title: 'Import a whole collection',
+      text: 'Lay out every item in a grid, in its original ratio or square, with GIFs and videos included.',
+      run: `document.querySelector('input[name=mode][value=all]').click();
+        setTimeout(() => {
+          document.getElementById('import').click();
+          document.activeElement.blur();
+        }, 200);`,
+    },
+  };
+  const scene = scenes[new URLSearchParams(location.search).get('scene')] || scenes.cover;
+  if (scene.title) {
+    document.getElementById('title').textContent = scene.title;
+    document.getElementById('text').textContent = scene.text;
+  }
 
   // The Figma theme tokens ui.html uses, as Figma injects them with themeColors.
   const tokens = `
@@ -156,16 +192,22 @@
   const kinds = { 1: 'gif', 3: 'video' };
   const items = tones.map((color, i) => ({ id: String(i + 1), kind: kinds[i] || 'image', duration: 7, name: `Image ${i + 1}`, width: 1000, height: 1000, thumb: swatch(color), original: null, src: '' }));
 
-  // Replaces the network calls with the placeholder board, then shows Select mode with three items checked.
+  // Placeholder collections, one with subcollections and one private.
+  const sub = (id, name, numberOfElements) => ({ id, name, isPrivate: false, numberOfElements });
+  const boards = [
+    { id: '1', name: 'Material studies', isPrivate: false, subClusters: { items: [sub('11', 'Concrete', 48), sub('12', 'Textiles', 31)] } },
+    { id: '2', name: 'Packaging', isPrivate: false, subClusters: { items: [] } },
+    { id: '3', name: 'Type in use', isPrivate: false, subClusters: { items: [] } },
+    { id: '4', name: 'Client moodboard', isPrivate: true, subClusters: { items: [sub('41', 'Round 2', 16)] } },
+  ];
+
+  // Replaces the network calls with the placeholder data, then runs the scene.
   const demo = `<script>
-    listBoards = async () => [{ id: '1', name: 'Material studies', subClusters: { items: [] } }];
+    listBoards = async () => ${JSON.stringify(boards)};
     listItems = async () => ({ items: ${JSON.stringify(items)}, next: null, count: ${items.length} });
+    searchItems = async () => ({ items: ${JSON.stringify(items.filter((item, i) => i % 3 !== 1))}, next: null, count: 7 });
     onmessage({ data: { pluginMessage: { type: 'init', session: { userId: 1, accessToken: 'demo', refreshToken: 'demo' }, settings: { gifs: 'animated', crop: 'original' } } } });
-    onmessage({ data: { pluginMessage: { type: 'selection', count: 2 } } });
-    setTimeout(() => {
-      document.querySelector('input[name=mode][value=select]').click();
-      [...document.querySelectorAll('.tile')].slice(0, 3).forEach((tile) => tile.click());
-    }, 300);
+    setTimeout(() => { ${scene.run} }, 300);
   <\/script>`;
 
   fetch('../ui.html')

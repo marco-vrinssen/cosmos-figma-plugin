@@ -4,7 +4,7 @@
 
 - The fields for Figma's publish dialog, in the order it asks. The upload kit's `Texts.txt` holds the same text.
 - Cosmos has allowed the publication. That is no endorsement, so the description keeps the not affiliated sentence.
-- The icon is `icon.png`, the cover `mockup-light.png`.
+- The icon is `icon.png`, the cover `mockup-light.png`, the carousel the three `slide-*.png`.
 
 ## Describe
 
@@ -44,6 +44,7 @@ Source code: https://github.com/marco-vrinssen/cosmos-plugin
 | --- | --- |
 | Icon | `icon.png`, 128 × 128 px |
 | Cover | `mockup-light.png`, 1920 × 1080 px |
+| Carousel | `slide-collections.png`, `slide-search.png`, `slide-import.png`, in this order, 1920 × 1080 px each |
 
 ## Data security
 

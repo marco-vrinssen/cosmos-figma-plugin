@@ -6,7 +6,7 @@ Figma plugin Cosmos Unofficial. `README.md` covers features and install, `PRIVAC
 
 - No build step. Figma loads `manifest.json`, `code.js` and `ui.html` as they are.
 - Every Cosmos API call stays in the `<script id="cosmos">` block of `ui.html`. `check.mjs` extracts and tests that block, so run `node check.mjs` after changing it. `marco-vrinssen/cosmos-mcp` started from this block, so a query fix here likely applies there too.
-- After a UI change, render `docs/mockup-light.png` and `docs/mockup-dark.png` again from `docs/mockup.html`.
+- After a UI change, render `docs/mockup-light.png`, `docs/mockup-dark.png` and the carousel slides `docs/slide-*.png` again from `docs/mockup.html`. Slides take `?scene=collections` (dark), `search` or `import`.
 - Inter is embedded as base64 in the last `<style>` block of `ui.html`. New CSS goes into the first one.
 - Inter ships as a 48 KB Latin subset with the 400 to 600 weight axis. The axis gives Figma's 450 and 550 weights.
 - The manifest `id` is `cosmos-plugin` until publish. Any later id change drops the stored session, so users sign in again.
