@@ -1,4 +1,4 @@
-# cosmos-figma-plugin
+# cosmos-plugin
 
 Figma plugin Cosmos Unofficial. `README.md` covers features and install, `PRIVACY.md` what it stores and sends, `docs/listing.md` the Community listing texts.
 
@@ -9,7 +9,7 @@ Figma plugin Cosmos Unofficial. `README.md` covers features and install, `PRIVAC
 - After a UI change, render `docs/mockup-light.png` and `docs/mockup-dark.png` again from `docs/mockup.html`.
 - Inter is embedded as base64 in the last `<style>` block of `ui.html`. New CSS goes into the first one.
 - Inter ships as a 48 KB Latin subset with the 400 to 600 weight axis. The axis gives Figma's 450 and 550 weights.
-- The manifest `id` is `cosmos-figma-plugin` until publish. Any later id change drops the stored session, so users sign in again.
+- The manifest `id` is `cosmos-plugin` until publish. Any later id change drops the stored session, so users sign in again.
 - FigUI3 (`rogie/figui3`) was rejected. Its menu is under PolyForm Shield, it weighs about 900 KB and its sliding segmented indicator is opt-in.
 - Settings sit in a native `popover`, so keyboard and screen readers work without extra code.
 - Busy buttons swap their label for UI3's spinner after 150 ms. The spinner is a 270 degree arc turning once a second, as in FigUI3.

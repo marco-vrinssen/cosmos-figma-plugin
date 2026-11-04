@@ -24,5 +24,5 @@ Nothing. The plugin sends no data to the developer or to any service other than 
 
 ## Contact
 
-- Questions go to the [issues page](https://github.com/marco-vrinssen/cosmos-figma-plugin/issues).
-- Security issues go privately through [GitHub's vulnerability reporting](https://github.com/marco-vrinssen/cosmos-figma-plugin/security/advisories/new).
+- Questions go to the [issues page](https://github.com/marco-vrinssen/cosmos-plugin/issues).
+- Security issues go privately through [GitHub's vulnerability reporting](https://github.com/marco-vrinssen/cosmos-plugin/security/advisories/new).

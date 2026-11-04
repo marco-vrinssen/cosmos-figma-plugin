@@ -1,6 +1,6 @@
 {
   "name": "Cosmos Unofficial",
-  "id": "cosmos-figma-plugin",
+  "id": "cosmos-plugin",
   "api": "1.0.0",
   "main": "code.js",
   "ui": "ui.html",
